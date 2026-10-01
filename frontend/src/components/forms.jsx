@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { api, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, TRAINING_LEVELS } from "../api.js";
+import { api, euro, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, TRAINING_LEVELS } from "../api.js";
 import { Alert, Field, Modal } from "./ui.jsx";
 import SkillsEditor, { cleanSkills, toEditor } from "./SkillsEditor.jsx";
 
@@ -42,6 +42,7 @@ export function ConsultantForm({ item, catalog, onClose, onSaved }) {
     {
       name: item?.name ?? "", title: item?.title ?? "", email: item?.email ?? "",
       experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "",
+      reserve_pct: item?.reserve_pct ?? 0,
       available_from: item?.available_from ?? "", status: item?.status ?? "Freelance",
       skills: item ? toEditor(item.skills, "consultant") : [{ name: "", level: 3 }],
     },
@@ -49,7 +50,8 @@ export function ConsultantForm({ item, catalog, onClose, onSaved }) {
       path: "/consultants/", item, onSaved,
       toBody: (v) => ({
         ...v, email: orNull(v.email.trim()), available_from: orNull(v.available_from),
-        experience_years: num(v.experience_years), tjm: num(v.tjm), skills: cleanSkills(v.skills),
+        experience_years: num(v.experience_years), tjm: num(v.tjm), reserve_pct: num(v.reserve_pct),
+        skills: cleanSkills(v.skills),
       }),
     }
   );
@@ -65,6 +67,12 @@ export function ConsultantForm({ item, catalog, onClose, onSaved }) {
         </Field>
         <Field label="Expérience (ans)"><input type="number" min="0" max="60" value={v.experience_years} onChange={set("experience_years")} /></Field>
         <Field label="TJM (€)"><input type="number" min="0" step="10" value={v.tjm} onChange={set("tjm")} /></Field>
+        <Field label="Réserve (% du TJM)">
+          <input type="number" min="0" max="100" step="1" value={v.reserve_pct} onChange={set("reserve_pct")} />
+          <small className="muted">
+            {euro(num(v.tjm) * num(v.reserve_pct) / 100)} / jour en réserve · net {euro(num(v.tjm) * (1 - num(v.reserve_pct) / 100))}
+          </small>
+        </Field>
         <Field label="Disponible à partir du"><input type="date" value={v.available_from} onChange={set("available_from")} /></Field>
         <Field label="Compétences" wide>
           <SkillsEditor mode="consultant" value={v.skills} onChange={set("skills")} catalog={catalog} />

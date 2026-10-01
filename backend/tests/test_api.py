@@ -125,3 +125,17 @@ def test_seed_idempotent():
         assert db.query(Mission).count() == 1
     finally:
         db.close()
+
+
+def test_reserve_salaire(client):
+    c = make_consultant(client)
+    assert (c["reserve_pct"], c["reserve_amount"], c["tjm_net"]) == (0, 0, 700)
+
+    c = make_consultant(client, name="Sara", tjm=650, reserve_pct=10)
+    assert (c["reserve_pct"], c["reserve_amount"], c["tjm_net"]) == (10, 65, 585)
+
+    r = client.put(f"/api/consultants/{c['id']}", json={"name": "Sara", "title": "DevOps", "tjm": 650, "reserve_pct": 25})
+    assert r.status_code == 200 and r.json()["reserve_amount"] == 162.5
+
+    for bad in (-1, 101):
+        assert client.post("/api/consultants/", json={"name": "X", "title": "Y", "reserve_pct": bad}).status_code == 422

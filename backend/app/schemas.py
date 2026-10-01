@@ -1,12 +1,13 @@
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, computed_field
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=150)]
 Level = Annotated[int, Field(ge=1, le=5, description="1 = notions, 3 = autonome, 5 = expert")]
 Money = Annotated[float, Field(ge=0, le=10_000)]
+Percent = Annotated[float, Field(ge=0, le=100, description="Pourcentage 0-100")]
 
 ConsultantStatus = Literal["Freelance", "Portage", "CDI", "Salarié"]
 MissionStatus = Literal["Ouverte", "Pourvue", "Fermée"]
@@ -55,6 +56,7 @@ class ConsultantIn(BaseModel):
     email: EmailStr | None = None
     experience_years: Annotated[int, Field(ge=0, le=60)] = 0
     tjm: Money = 0
+    reserve_pct: Percent = 0
     available_from: date | None = None
     status: ConsultantStatus = "Freelance"
     skills: list[SkillLevelIn] = []
@@ -67,9 +69,20 @@ class ConsultantOut(ORM):
     email: str | None
     experience_years: int
     tjm: float
+    reserve_pct: float
     available_from: date | None
     status: str
     skills: list[ConsultantSkillOut]
+
+    @computed_field(description="Montant mis en réserve par jour (TJM × réserve %)")
+    @property
+    def reserve_amount(self) -> float:
+        return round(self.tjm * self.reserve_pct / 100, 2)
+
+    @computed_field(description="TJM restant après réserve")
+    @property
+    def tjm_net(self) -> float:
+        return round(self.tjm - self.reserve_amount, 2)
 
 
 # --- Entreprises -----------------------------------------------------------
