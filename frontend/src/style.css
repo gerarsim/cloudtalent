@@ -88,3 +88,13 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
   .skill-row .check{grid-column:1/-1}
   .mission-card{flex-direction:column;align-items:flex-start}
 }
+
+.session{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:14px;opacity:.9}
+.session button.link{color:#7dd3fc}
+.login{max-width:380px;margin:40px auto;display:flex;flex-direction:column;gap:14px}
+.profile{display:flex;flex-direction:column;gap:22px}
+.profile-name{font-size:22px !important}
+.profile h2{margin:0 0 10px;font-size:16px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:14px;border:1px solid #e2e8f0;border-radius:10px}
+.stat b{font-size:20px}
+.status.s-inactive{background:#f1f5f9;color:#64748b}

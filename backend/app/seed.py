@@ -5,7 +5,8 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import Company, Consultant, ConsultantSkill, Mission, MissionSkill, Training
+from .auth import hash_password
+from .models import Company, Consultant, ConsultantSkill, Mission, MissionSkill, Training, User
 from .skills import get_or_create_skill
 
 
@@ -19,13 +20,14 @@ def seed(db: Session) -> None:
 
     today = date.today()
 
+    ahmed = Consultant(
+        name="Ahmed Benali", title="Senior DevOps Engineer", email="ahmed.benali@example.com",
+        experience_years=8, tjm=700, status="Freelance",
+        skills=_cskills(db, {"AWS": 5, "EKS": 4, "Kubernetes": 4, "Terraform": 4, "Docker": 4,
+                             "GitLab CI/CD": 4, "ArgoCD": 3, "Linux": 4}),
+    )
     db.add_all([
-        Consultant(
-            name="Ahmed Benali", title="Senior DevOps Engineer", email="ahmed.benali@example.com",
-            experience_years=8, tjm=700, status="Freelance",
-            skills=_cskills(db, {"AWS": 5, "EKS": 4, "Kubernetes": 4, "Terraform": 4, "Docker": 4,
-                                 "GitLab CI/CD": 4, "ArgoCD": 3, "Linux": 4}),
-        ),
+        ahmed,
         Consultant(
             name="Sophie Martin", title="Cloud Engineer", email="sophie.martin@example.com",
             experience_years=6, tjm=650, status="Portage", available_from=today + timedelta(days=30),
@@ -39,6 +41,11 @@ def seed(db: Session) -> None:
                                  "GitHub Actions": 3, "DevSecOps": 3}),
         ),
     ])
+
+    # Compte de démonstration : le consultant ne voit et ne modifie que sa fiche
+    db.flush()
+    db.add(User(email="ahmed.benali@example.com", password_hash=hash_password("consultant123"),
+                role="consultant", consultant_id=ahmed.id))
 
     bank = Company(name="Demo Bank Luxembourg", sector="Banking", city="Luxembourg",
                    contact_name="IT Procurement", email="demo@example.com")

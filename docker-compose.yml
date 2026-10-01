@@ -20,6 +20,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://cloudtalent:cloudtalent@db:5432/cloudtalent
       SEED_DEMO: "true"
+      # Dev uniquement : à remplacer (et à garder secret) hors poste local
+      SECRET_KEY: dev-secret-change-me
+      ADMIN_EMAIL: admin@cloudtalent.lu
+      ADMIN_PASSWORD: admin1234
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "8000:8000"
