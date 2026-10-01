@@ -9,6 +9,9 @@ _tmp = pathlib.Path(tempfile.mkdtemp()) / "test.db"
 # vers une base dédiée.
 os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", f"sqlite:///{_tmp}")
 os.environ["SEED_DEMO"] = "false"
+os.environ["SECRET_KEY"] = "test-secret"
+os.environ["ADMIN_EMAIL"] = ADMIN_EMAIL = "admin@example.com"
+os.environ["ADMIN_PASSWORD"] = ADMIN_PASSWORD = "admin-password"
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -46,7 +49,21 @@ def clean_tables():
             c.execute(table.delete())
 
 
+def login(client: TestClient, email: str, password: str) -> TestClient:
+    r = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+    return client
+
+
 @pytest.fixture
-def client():
+def anon():
+    """Client non authentifié. Le démarrage crée le compte admin (ADMIN_EMAIL)."""
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def client(anon):
+    """Client connecté en admin (accès complet)."""
+    return login(anon, ADMIN_EMAIL, ADMIN_PASSWORD)

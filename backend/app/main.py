@@ -2,11 +2,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import current_user, ensure_admin, require_admin
 from .database import SessionLocal
-from .routers import companies, consultants, missions, skills, training
+from .routers import auth, companies, consultants, missions, skills, training, users
 from .seed import seed
 
 log = logging.getLogger("cloudtalent")
@@ -15,15 +16,16 @@ log = logging.getLogger("cloudtalent")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Le schéma est géré par Alembic (`alembic upgrade head`, lancé par l'entrypoint Docker).
-    if os.getenv("SEED_DEMO", "true").lower() == "true":
-        db = SessionLocal()
-        try:
+    db = SessionLocal()
+    try:
+        ensure_admin(db)
+        if os.getenv("SEED_DEMO", "true").lower() == "true":
             seed(db)
-        except Exception:
-            db.rollback()
-            log.exception("Échec du chargement des données de démonstration")
-        finally:
-            db.close()
+    except Exception:
+        db.rollback()
+        log.exception("Échec de l'initialisation (admin / données de démonstration)")
+    finally:
+        db.close()
     yield
 
 
@@ -40,8 +42,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (consultants, companies, missions, training, skills):
-    app.include_router(r.router, prefix="/api")
+# Droits : un admin a accès à tout ; un consultant uniquement à sa propre fiche
+# (contrôle fait dans le router consultants) et au référentiel de compétences.
+app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(consultants.router, prefix="/api")
+app.include_router(skills.router, prefix="/api", dependencies=[Depends(current_user)])
+for r in (companies, missions, training):
+    app.include_router(r.router, prefix="/api", dependencies=[Depends(require_admin)])
 
 
 @app.get("/api/health", tags=["Système"])

@@ -173,3 +173,51 @@ class MatchOut(BaseModel):
     eligible: bool = Field(description="Possède toutes les compétences obligatoires")
     matched: list[SkillMatch]
     missing: list[SkillMatch]
+
+
+# --- Comptes & authentification -------------------------------------------
+
+Role = Literal["admin", "consultant"]
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: Annotated[str, StringConstraints(max_length=128)]
+
+
+class UserOut(ORM):
+    id: int
+    email: str
+    role: str
+    consultant_id: int | None
+    active: bool
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+class UserIn(BaseModel):
+    """Création d'un compte par un admin. `consultant_id` obligatoire pour le rôle consultant."""
+    email: EmailStr
+    password: Password
+    role: Role
+    consultant_id: int | None = None
+    active: bool = True
+
+
+class UserUpdate(BaseModel):
+    """Modification par un admin. Mot de passe inchangé si absent."""
+    email: EmailStr
+    password: Password | None = None
+    role: Role
+    consultant_id: int | None = None
+    active: bool = True
+
+
+class PasswordChange(BaseModel):
+    current_password: Annotated[str, StringConstraints(max_length=128)]
+    new_password: Password

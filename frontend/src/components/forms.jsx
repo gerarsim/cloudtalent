@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { api, euro, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, TRAINING_LEVELS } from "../api.js";
+import { api, euro, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, ROLES, TRAINING_LEVELS } from "../api.js";
 import { Alert, Field, Modal } from "./ui.jsx";
 import SkillsEditor, { cleanSkills, toEditor } from "./SkillsEditor.jsx";
 
-/** Logique commune : état local, POST (création) ou PUT (édition), erreurs API. */
-function useForm(initial, { path, item, toBody, onSaved }) {
+/** Logique commune : état local, POST (création) ou PUT (édition), erreurs API.
+ *  `url` remplace l'URL calculée (ex. PUT /consultants/me pour sa propre fiche). */
+function useForm(initial, { path, item, url, toBody, onSaved }) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -14,7 +15,7 @@ function useForm(initial, { path, item, toBody, onSaved }) {
     setBusy(true);
     setError(null);
     try {
-      await api(item ? `${path}${item.id}` : path, { method: item ? "PUT" : "POST", body: toBody(v) });
+      await api(url ?? (item ? `${path}${item.id}` : path), { method: item ? "PUT" : "POST", body: toBody(v) });
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -37,7 +38,8 @@ function Actions({ busy, onClose, item }) {
 const num = (x) => (x === "" || x === null || x === undefined ? 0 : Number(x));
 const intOrNull = (x) => (x === "" || x === null || x === undefined ? null : parseInt(x, 10));
 
-export function ConsultantForm({ item, catalog, onClose, onSaved }) {
+/** `self` : le consultant modifie sa propre fiche (PUT /consultants/me). */
+export function ConsultantForm({ item, catalog, self, onClose, onSaved }) {
   const f = useForm(
     {
       name: item?.name ?? "", title: item?.title ?? "", email: item?.email ?? "",
@@ -47,7 +49,7 @@ export function ConsultantForm({ item, catalog, onClose, onSaved }) {
       skills: item ? toEditor(item.skills, "consultant") : [{ name: "", level: 3 }],
     },
     {
-      path: "/consultants/", item, onSaved,
+      path: "/consultants/", item, onSaved, url: self ? "/consultants/me" : undefined,
       toBody: (v) => ({
         ...v, email: orNull(v.email.trim()), available_from: orNull(v.available_from),
         experience_years: num(v.experience_years), tjm: num(v.tjm), reserve_pct: num(v.reserve_pct),
@@ -57,7 +59,7 @@ export function ConsultantForm({ item, catalog, onClose, onSaved }) {
   );
   const { v, set } = f;
   return (
-    <Modal title={item ? "Modifier le consultant" : "Nouveau consultant"} onClose={onClose}>
+    <Modal title={self ? "Modifier ma fiche" : item ? "Modifier le consultant" : "Nouveau consultant"} onClose={onClose}>
       <form onSubmit={f.submit} className="grid-form">
         <Field label="Nom *"><input required value={v.name} onChange={set("name")} autoFocus /></Field>
         <Field label="Profil *"><input required value={v.title} onChange={set("title")} placeholder="Senior DevOps Engineer" /></Field>
@@ -180,6 +182,68 @@ export function TrainingForm({ item, catalog, onClose, onSaved }) {
         <label className="check field"><input type="checkbox" checked={v.online} onChange={set("online")} /> En ligne</label>
         <Alert onClose={() => f.setError(null)}>{f.error}</Alert>
         <Actions busy={f.busy} onClose={onClose} item={item} />
+      </form>
+    </Modal>
+  );
+}
+
+export function UserForm({ item, consultants, onClose, onSaved }) {
+  const f = useForm(
+    {
+      email: item?.email ?? "", password: "", role: item?.role ?? "consultant",
+      consultant_id: item?.consultant_id ?? "", active: item?.active ?? true,
+    },
+    {
+      path: "/users/", item, onSaved,
+      toBody: (v) => ({
+        ...v, email: v.email.trim(), password: orNull(v.password),
+        consultant_id: v.role === "consultant" ? (v.consultant_id === "" ? null : Number(v.consultant_id)) : null,
+      }),
+    }
+  );
+  const { v, set } = f;
+  return (
+    <Modal title={item ? "Modifier le compte" : "Nouveau compte"} onClose={onClose}>
+      <form onSubmit={f.submit} className="grid-form">
+        <Field label="Email de connexion *"><input type="email" required value={v.email} onChange={set("email")} autoFocus /></Field>
+        <Field label={item ? "Nouveau mot de passe" : "Mot de passe *"}>
+          <input type="password" minLength={8} required={!item} value={v.password} onChange={set("password")}
+                 autoComplete="new-password" placeholder={item ? "inchangé si vide" : "8 caractères min."} />
+        </Field>
+        <Field label="Rôle">
+          <select value={v.role} onChange={set("role")}>
+            {Object.entries(ROLES).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        </Field>
+        {v.role === "consultant" && (
+          <Field label="Fiche consultant *">
+            <select required value={v.consultant_id} onChange={set("consultant_id")}>
+              <option value="">—</option>
+              {consultants.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
+        <label className="check field"><input type="checkbox" checked={v.active} onChange={set("active")} /> Compte actif</label>
+        <Alert onClose={() => f.setError(null)}>{f.error}</Alert>
+        <Actions busy={f.busy} onClose={onClose} item={item} />
+      </form>
+    </Modal>
+  );
+}
+
+export function PasswordForm({ onClose, onSaved }) {
+  const f = useForm(
+    { current_password: "", new_password: "" },
+    { path: "/auth/password", onSaved, toBody: (v) => v }
+  );
+  const { v, set } = f;
+  return (
+    <Modal title="Changer mon mot de passe" onClose={onClose}>
+      <form onSubmit={f.submit} className="grid-form">
+        <Field label="Mot de passe actuel"><input type="password" required value={v.current_password} onChange={set("current_password")} autoComplete="current-password" autoFocus /></Field>
+        <Field label="Nouveau mot de passe"><input type="password" required minLength={8} value={v.new_password} onChange={set("new_password")} autoComplete="new-password" /></Field>
+        <Alert onClose={() => f.setError(null)}>{f.error}</Alert>
+        <Actions busy={f.busy} onClose={onClose} item />
       </form>
     </Modal>
   );

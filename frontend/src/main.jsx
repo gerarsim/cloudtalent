@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { api, euro, frDate } from "./api.js";
+import { api, euro, frDate, hasToken, setToken, setUnauthorizedHandler, ROLES } from "./api.js";
 import { Alert, Page, SkillChips, Table } from "./components/ui.jsx";
-import { CompanyForm, ConsultantForm, MissionForm, TrainingForm } from "./components/forms.jsx";
+import { CompanyForm, ConsultantForm, MissionForm, TrainingForm, UserForm } from "./components/forms.jsx";
+import Header from "./components/Header.jsx";
+import Login from "./components/Login.jsx";
 import Matches from "./components/Matches.jsx";
+import MyAccount from "./components/MyAccount.jsx";
 
 const TABS = [
   ["dashboard", "Dashboard"],
@@ -12,11 +15,28 @@ const TABS = [
   ["companies", "Entreprises"],
   ["missions", "Missions"],
   ["trainings", "Formations"],
+  ["users", "Utilisateurs"],
 ];
 
-function App() {
+/** Choix de l'espace selon le rôle : admin = tout, consultant = sa fiche uniquement. */
+function Root() {
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(hasToken());
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+    if (!hasToken()) return;
+    api("/auth/me").then(setUser).catch(() => setToken(null)).finally(() => setChecking(false));
+  }, []);
+  const logout = () => { setToken(null); setUser(null); };
+
+  if (checking) return <div className="app"><Header /><main><p className="muted">Chargement…</p></main></div>;
+  if (!user) return <Login onLogin={setUser} />;
+  return user.role === "admin" ? <App user={user} onLogout={logout} /> : <MyAccount user={user} onLogout={logout} />;
+}
+
+function App({ user, onLogout }) {
   const [tab, setTab] = useState("dashboard");
-  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [] });
+  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [], users: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // modal = {kind: "consultant"|"company"|"mission"|"training"|"matches", item?}
@@ -24,10 +44,10 @@ function App() {
 
   const load = useCallback(async () => {
     try {
-      const [consultants, companies, missions, trainings, skills] = await Promise.all(
-        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/"].map((p) => api(p))
+      const [consultants, companies, missions, trainings, skills, users] = await Promise.all(
+        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/", "/users/"].map((p) => api(p))
       );
-      setData({ consultants, companies, missions, trainings, skills });
+      setData({ consultants, companies, missions, trainings, skills, users });
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -58,10 +78,7 @@ function App() {
 
   return (
     <div className="app">
-      <header>
-        <div className="logo">Cloud<span>Talent</span></div>
-        <div className="subtitle">Cloud & DevOps Talent Platform</div>
-      </header>
+      <Header user={user} onLogout={onLogout} />
       <nav>
         {TABS.map(([key, label]) => (
           <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
@@ -134,6 +151,25 @@ function App() {
                   ]} />
               </Page>
             )}
+
+            {tab === "users" && (
+              <Page title="Utilisateurs" onAdd={open("user")}>
+                <Table rows={data.users} empty="Aucun compte"
+                  actions={(r) => (
+                    <>
+                      <button className="link" onClick={open("user", r)}>Modifier</button>
+                      {r.id !== user.id && <button className="link danger" onClick={() => remove(`/users/${r.id}`, r.email)}>Supprimer</button>}
+                    </>
+                  )}
+                  columns={[
+                    { key: "email", label: "Email", render: (x) => <b>{x.email}</b> },
+                    { key: "role", label: "Rôle", render: (x) => ROLES[x.role] },
+                    { key: "consultant", label: "Fiche consultant", render: (x) => data.consultants.find((c) => c.id === x.consultant_id)?.name ?? "—" },
+                    { key: "active", label: "Statut", render: (x) => x.active ? "Actif" : <span className="status s-inactive">Désactivé</span> },
+                  ]} />
+                <p className="muted">Un administrateur a accès à tout. Un consultant ne voit et ne modifie que sa propre fiche.</p>
+              </Page>
+            )}
           </>
         )}
       </main>
@@ -142,6 +178,7 @@ function App() {
       {modal?.kind === "company" && <CompanyForm item={modal.item} onClose={close} onSaved={saved} />}
       {modal?.kind === "mission" && <MissionForm item={modal.item} catalog={data.skills} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "training" && <TrainingForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
+      {modal?.kind === "user" && <UserForm item={modal.item} consultants={data.consultants} onClose={close} onSaved={saved} />}
       {modal?.kind === "matches" && <Matches mission={modal.item} onClose={close} />}
     </div>
   );
@@ -185,4 +222,4 @@ function Card({ n, t, sub }) {
   return <div className="card"><b>{n}</b><span>{t}</span>{sub && <small className="muted">{sub}</small>}</div>;
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(<Root />);

@@ -23,6 +23,21 @@ Puis ouvrir :
 > et il est désormais géré par Alembic. Supprimez une fois l'ancienne base :
 > `docker compose down -v`, puis `docker compose up --build`.
 
+## Comptes et rôles
+
+L'application demande une connexion. Deux rôles :
+
+| Rôle | Droits |
+|------|--------|
+| **Administrateur** | Accès complet : consultants, entreprises, missions, formations, matching, gestion des comptes (onglet « Utilisateurs »). |
+| **Consultant** | Voit et modifie **uniquement sa propre fiche** (« Mon compte » : profil, TJM, réserve, compétences, disponibilité) et son mot de passe. Tout le reste renvoie 403. |
+
+- Le compte admin est créé au démarrage depuis `ADMIN_EMAIL` / `ADMIN_PASSWORD` s'il n'existe aucun admin
+  (en dev : `admin@cloudtalent.lu` / `admin1234`, voir `docker-compose.yml`).
+- Données de démo : compte consultant `ahmed.benali@example.com` / `consultant123`.
+- Un compte consultant est rattaché à une fiche consultant ; supprimer la fiche supprime le compte.
+- `SECRET_KEY` signe les jetons de session (12 h, `TOKEN_TTL_SECONDS`). **À changer hors poste local.**
+
 ## Arrêt
 
 ```powershell
@@ -79,5 +94,5 @@ liste de `{consultant, score, skill_score, eligible, tjm_ok, available, matched,
 ## Important
 
 C'est un prototype local, pas encore une plateforme de production. Il manque notamment :
-authentification, gestion des rôles, sécurité, RGPD, contrats, paiement, facturation,
+sécurité de production (HTTPS, limitation des tentatives de connexion, réinitialisation de mot de passe), RGPD, contrats, paiement, facturation,
 gestion du portage salarial, stockage de CV et workflow commercial.

@@ -111,6 +111,31 @@ class Mission(Base):
     )
 
 
+class User(Base):
+    """Compte de connexion. Un admin a tous les droits ; un consultant ne voit que sa fiche."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'consultant')", name="ck_user_role"),
+        CheckConstraint(
+            "(role = 'admin' AND consultant_id IS NULL) OR (role = 'consultant' AND consultant_id IS NOT NULL)",
+            name="ck_user_consultant",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Fiche consultant rattachée (uniquement pour le rôle consultant) ; supprimée avec elle
+    consultant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("consultants.id", ondelete="CASCADE"), unique=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    consultant: Mapped[Consultant | None] = relationship(lazy="joined")
+
+
 class Training(Base):
     __tablename__ = "trainings"
     __table_args__ = (CheckConstraint("price >= 0", name="ck_training_price"),)
@@ -134,4 +159,5 @@ __all__ = [
     "Company",
     "Mission",
     "Training",
+    "User",
 ]
