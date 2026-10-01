@@ -81,6 +81,7 @@ function App() {
                     { key: "exp", label: "Exp.", render: (x) => `${x.experience_years} ans` },
                     { key: "skills", label: "Compétences", render: (x) => <SkillChips items={x.skills} /> },
                     { key: "tjm", label: "TJM", render: (x) => euro(x.tjm) },
+                    { key: "reserve", label: "Réserve", render: (x) => x.reserve_pct ? <>{euro(x.reserve_amount)}<div className="muted">{x.reserve_pct} %</div></> : "—" },
                     { key: "avail", label: "Disponibilité", render: (x) => x.available_from && x.available_from > today() ? frDate(x.available_from) : "Immédiate" },
                     { key: "status", label: "Statut" },
                   ]} />

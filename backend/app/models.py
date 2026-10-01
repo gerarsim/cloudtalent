@@ -57,6 +57,7 @@ class Consultant(Base):
     __table_args__ = (
         CheckConstraint("tjm >= 0", name="ck_consultant_tjm"),
         CheckConstraint("experience_years >= 0", name="ck_consultant_exp"),
+        CheckConstraint("reserve_pct BETWEEN 0 AND 100", name="ck_consultant_reserve_pct"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -65,6 +66,8 @@ class Consultant(Base):
     email: Mapped[str | None] = mapped_column(String(200), unique=True)
     experience_years: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tjm: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    # Part du TJM que le consultant met de côté en réserve (0-100 %)
+    reserve_pct: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     available_from: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(30), default="Freelance", nullable=False)
 
