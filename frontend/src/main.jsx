@@ -1,0 +1,187 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import "./style.css";
+import { api, euro, frDate } from "./api.js";
+import { Alert, Page, SkillChips, Table } from "./components/ui.jsx";
+import { CompanyForm, ConsultantForm, MissionForm, TrainingForm } from "./components/forms.jsx";
+import Matches from "./components/Matches.jsx";
+
+const TABS = [
+  ["dashboard", "Dashboard"],
+  ["consultants", "Consultants"],
+  ["companies", "Entreprises"],
+  ["missions", "Missions"],
+  ["trainings", "Formations"],
+];
+
+function App() {
+  const [tab, setTab] = useState("dashboard");
+  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  // modal = {kind: "consultant"|"company"|"mission"|"training"|"matches", item?}
+  const [modal, setModal] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [consultants, companies, missions, trainings, skills] = await Promise.all(
+        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/"].map((p) => api(p))
+      );
+      setData({ consultants, companies, missions, trainings, skills });
+      setError(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const close = useCallback(() => setModal(null), []);
+  const saved = () => { setModal(null); load(); };
+  const remove = async (path, label) => {
+    if (!window.confirm(`Supprimer « ${label} » ?`)) return;
+    try {
+      await api(path, { method: "DELETE" });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const open = (kind, item) => () => setModal({ kind, item });
+  const rowActions = (kind, path, label) => (r) => (
+    <>
+      <button className="link" onClick={open(kind, r)}>Modifier</button>
+      <button className="link danger" onClick={() => remove(`${path}${r.id}`, r[label])}>Supprimer</button>
+    </>
+  );
+
+  return (
+    <div className="app">
+      <header>
+        <div className="logo">Cloud<span>Talent</span></div>
+        <div className="subtitle">Cloud & DevOps Talent Platform</div>
+      </header>
+      <nav>
+        {TABS.map(([key, label]) => (
+          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
+        ))}
+      </nav>
+      <main>
+        <Alert onClose={() => setError(null)}>{error}</Alert>
+        {loading ? <p className="muted">Chargement…</p> : (
+          <>
+            {tab === "dashboard" && <Dashboard {...data} onMatch={(m) => setModal({ kind: "matches", item: m })} />}
+
+            {tab === "consultants" && (
+              <Page title="Consultants" onAdd={open("consultant")}>
+                <Table rows={data.consultants} empty="Aucun consultant" actions={rowActions("consultant", "/consultants/", "name")}
+                  columns={[
+                    { key: "name", label: "Nom", render: (x) => <><b>{x.name}</b><div className="muted">{x.title}</div></> },
+                    { key: "exp", label: "Exp.", render: (x) => `${x.experience_years} ans` },
+                    { key: "skills", label: "Compétences", render: (x) => <SkillChips items={x.skills} /> },
+                    { key: "tjm", label: "TJM", render: (x) => euro(x.tjm) },
+                    { key: "avail", label: "Disponibilité", render: (x) => x.available_from && x.available_from > today() ? frDate(x.available_from) : "Immédiate" },
+                    { key: "status", label: "Statut" },
+                  ]} />
+              </Page>
+            )}
+
+            {tab === "companies" && (
+              <Page title="Entreprises" onAdd={open("company")}>
+                <Table rows={data.companies} empty="Aucune entreprise" actions={rowActions("company", "/companies/", "name")}
+                  columns={[
+                    { key: "name", label: "Entreprise", render: (x) => <b>{x.name}</b> },
+                    { key: "sector", label: "Secteur" },
+                    { key: "city", label: "Ville" },
+                    { key: "contact_name", label: "Contact" },
+                    { key: "email", label: "Email", render: (x) => x.email ?? "—" },
+                  ]} />
+              </Page>
+            )}
+
+            {tab === "missions" && (
+              <Page title="Missions" onAdd={open("mission")}>
+                <Table rows={data.missions} empty="Aucune mission"
+                  actions={(r) => (
+                    <>
+                      <button className="primary small" onClick={open("matches", r)}>Matching</button>
+                      {rowActions("mission", "/missions/", "title")(r)}
+                    </>
+                  )}
+                  columns={[
+                    { key: "title", label: "Mission", render: (x) => <><b>{x.title}</b><div className="muted">{x.company?.name ?? "—"} · {x.location}</div></> },
+                    { key: "skills", label: "Compétences", render: (x) => <SkillChips items={x.skills} /> },
+                    { key: "start", label: "Démarrage", render: (x) => frDate(x.start_date) },
+                    { key: "dur", label: "Durée", render: (x) => (x.duration_months ? `${x.duration_months} mois` : "—") },
+                    { key: "tjm", label: "TJM max", render: (x) => euro(x.tjm_max) },
+                    { key: "status", label: "Statut", render: (x) => <span className={`status s-${x.status}`}>{x.status}</span> },
+                  ]} />
+              </Page>
+            )}
+
+            {tab === "trainings" && (
+              <Page title="Formations" onAdd={open("training")}>
+                <Table rows={data.trainings} empty="Aucune formation" actions={rowActions("training", "/trainings/", "title")}
+                  columns={[
+                    { key: "title", label: "Formation", render: (x) => <b>{x.title}</b> },
+                    { key: "skill", label: "Compétence", render: (x) => x.skill?.name ?? "—" },
+                    { key: "level", label: "Niveau" },
+                    { key: "dur", label: "Durée", render: (x) => (x.duration_days ? `${x.duration_days} j` : "—") },
+                    { key: "price", label: "Prix", render: (x) => euro(x.price) },
+                    { key: "online", label: "Format", render: (x) => (x.online ? "En ligne" : "Présentiel") },
+                  ]} />
+              </Page>
+            )}
+          </>
+        )}
+      </main>
+
+      {modal?.kind === "consultant" && <ConsultantForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
+      {modal?.kind === "company" && <CompanyForm item={modal.item} onClose={close} onSaved={saved} />}
+      {modal?.kind === "mission" && <MissionForm item={modal.item} catalog={data.skills} companies={data.companies} onClose={close} onSaved={saved} />}
+      {modal?.kind === "training" && <TrainingForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
+      {modal?.kind === "matches" && <Matches mission={modal.item} onClose={close} />}
+    </div>
+  );
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function Dashboard({ consultants, companies, missions, trainings, onMatch }) {
+  const open = missions.filter((m) => m.status === "Ouverte");
+  return (
+    <>
+      <h1>Dashboard</h1>
+      <div className="cards">
+        <Card n={consultants.length} t="Consultants" />
+        <Card n={companies.length} t="Entreprises" />
+        <Card n={open.length} t="Missions ouvertes" sub={`${missions.length} au total`} />
+        <Card n={trainings.length} t="Formations" />
+      </div>
+      <section>
+        <h2>Missions ouvertes</h2>
+        {open.length === 0 ? <p className="muted">Aucune mission ouverte.</p> : (
+          <div className="open-missions">
+            {open.map((m) => (
+              <div key={m.id} className="card mission-card">
+                <div><b>{m.title}</b><div className="muted">{m.company?.name ?? "—"} · TJM max {euro(m.tjm_max)}</div></div>
+                <button className="primary small" onClick={() => onMatch(m)}>Voir les profils</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      <section>
+        <h2>Positionnement</h2>
+        <p>Former → Qualifier → Matcher → Missionner → Freelance / Portage salarial</p>
+      </section>
+    </>
+  );
+}
+
+function Card({ n, t, sub }) {
+  return <div className="card"><b>{n}</b><span>{t}</span>{sub && <small className="muted">{sub}</small>}</div>;
+}
+
+createRoot(document.getElementById("root")).render(<App />);
