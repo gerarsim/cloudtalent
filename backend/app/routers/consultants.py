@@ -163,6 +163,11 @@ async def upload_cv(consultant_id: int, file: UploadFile, user: User = Depends(c
 @router.get("/{consultant_id}/cv")
 def download_cv(consultant_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     _check_access(user, consultant_id)
+    return cv_response(db, consultant_id)
+
+
+def cv_response(db: Session, consultant_id: int) -> Response:
+    """Téléchargement du CV (droits vérifiés par l'appelant)."""
     cv = db.scalar(select(ConsultantCV).options(undefer(ConsultantCV.data))
                    .where(ConsultantCV.consultant_id == consultant_id))
     if cv is None:

@@ -7,6 +7,7 @@ import { CompanyForm, ConsultantForm, MissionForm, TrainingForm, UserForm } from
 import Header from "./components/Header.jsx";
 import Login from "./components/Login.jsx";
 import Matches from "./components/Matches.jsx";
+import ConsultantProfile from "./components/ConsultantProfile.jsx";
 import MyAccount from "./components/MyAccount.jsx";
 import CompanySpace from "./components/CompanySpace.jsx";
 
@@ -39,7 +40,7 @@ function Root() {
 
 function App({ user, onLogout }) {
   const [tab, setTab] = useState("dashboard");
-  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [], users: [] });
+  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [], users: [], enrollments: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // modal = {kind: "consultant"|"company"|"mission"|"training"|"matches", item?}
@@ -47,10 +48,10 @@ function App({ user, onLogout }) {
 
   const load = useCallback(async () => {
     try {
-      const [consultants, companies, missions, trainings, skills, users] = await Promise.all(
-        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/", "/users/"].map((p) => api(p))
+      const [consultants, companies, missions, trainings, skills, users, enrollments] = await Promise.all(
+        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/", "/users/", "/enrollments/"].map((p) => api(p))
       );
-      setData({ consultants, companies, missions, trainings, skills, users });
+      setData({ consultants, companies, missions, trainings, skills, users, enrollments });
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -72,6 +73,14 @@ function App({ user, onLogout }) {
     }
   };
   const open = (kind, item) => () => setModal({ kind, item });
+  const setEnrollment = async (e, status) => {
+    try {
+      await api(`/enrollments/${e.id}`, { method: "PUT", body: { status } });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   const rowActions = (kind, path, label) => (r) => (
     <>
       <button className="link" onClick={open(kind, r)}>Modifier</button>
@@ -95,7 +104,13 @@ function App({ user, onLogout }) {
 
             {tab === "consultants" && (
               <Page title="Consultants" onAdd={open("consultant")}>
-                <Table rows={data.consultants} empty="Aucun consultant" actions={rowActions("consultant", "/consultants/", "name")}
+                <Table rows={data.consultants} empty="Aucun consultant"
+                  actions={(r) => (
+                    <>
+                      <button className="primary small" onClick={open("profile", r)}>Profil</button>
+                      {rowActions("consultant", "/consultants/", "name")(r)}
+                    </>
+                  )}
                   columns={[
                     { key: "name", label: "Nom", render: (x) => <><b>{x.name}</b><div className="muted">{x.title}</div></> },
                     { key: "exp", label: "Exp.", render: (x) => `${x.experience_years} ans` },
@@ -156,6 +171,22 @@ function App({ user, onLogout }) {
                     { key: "dur", label: "Durée", render: (x) => (x.duration_days ? `${x.duration_days} j` : "—") },
                     { key: "price", label: "Prix", render: (x) => euro(x.price) },
                     { key: "online", label: "Format", render: (x) => (x.online ? "En ligne" : "Présentiel") },
+                    { key: "enrolled", label: "Inscrits", render: (x) => data.enrollments.filter((e) => e.training.id === x.id && e.status !== "Annulée").length || "—" },
+                  ]} />
+                <h2>Inscriptions des entreprises</h2>
+                <Table rows={data.enrollments} empty="Aucune inscription"
+                  actions={(r) => (
+                    <>
+                      {r.status !== "Confirmée" && <button className="link" onClick={() => setEnrollment(r, "Confirmée")}>Confirmer</button>}
+                      {r.status !== "Annulée" && <button className="link danger" onClick={() => setEnrollment(r, "Annulée")}>Annuler</button>}
+                    </>
+                  )}
+                  columns={[
+                    { key: "training", label: "Formation", render: (x) => <b>{x.training.title}</b> },
+                    { key: "company", label: "Entreprise", render: (x) => x.company.name },
+                    { key: "who", label: "Participant", render: (x) => <>{x.participant_name}<div className="muted">{x.participant_email}</div></> },
+                    { key: "date", label: "Demandée le", render: (x) => new Date(x.created_at).toLocaleDateString("fr-FR") },
+                    { key: "status", label: "Statut", render: (x) => <span className={`status s-${x.status}`}>{x.status}</span> },
                   ]} />
               </Page>
             )}
@@ -190,6 +221,7 @@ function App({ user, onLogout }) {
       {modal?.kind === "training" && <TrainingForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
       {modal?.kind === "user" && <UserForm item={modal.item} consultants={data.consultants} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "matches" && <Matches mission={modal.item} onClose={close} />}
+      {modal?.kind === "profile" && <ConsultantProfile consultant={modal.item} onClose={close} />}
     </div>
   );
 }

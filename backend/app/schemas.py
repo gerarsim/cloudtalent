@@ -221,6 +221,75 @@ class TrainingOut(ORM):
     online: bool
 
 
+class TrainingRef(ORM):
+    id: int
+    title: str
+
+
+# --- Propositions de consultants aux entreprises ----------------------------
+
+ProposalStatus = Literal["Proposé", "Retenu", "Refusé"]
+
+
+class ConsultantPublicOut(ORM):
+    """Profil montré à une entreprise : ni email, ni TJM, ni réserve, ni salaire, ni mission en cours."""
+    id: int
+    name: str
+    title: str
+    experience_years: int
+    available_from: date | None
+    status: str
+    skills: list[ConsultantSkillOut]
+    cv: CvOut | None
+
+
+class MissionRef(ORM):
+    id: int
+    title: str
+
+
+class ProposalIn(BaseModel):
+    mission_id: int
+    consultant_id: int
+
+
+class ProposalStatusIn(BaseModel):
+    status: ProposalStatus
+
+
+class ProposalOut(ORM):
+    id: int
+    status: str
+    created_at: datetime
+    mission: MissionRef
+    consultant: ConsultantPublicOut
+
+
+# --- Inscriptions aux formations -------------------------------------------
+
+EnrollmentStatus = Literal["Demandée", "Confirmée", "Annulée"]
+
+
+class EnrollmentIn(BaseModel):
+    training_id: int
+    participant_name: Name
+    participant_email: EmailStr
+
+
+class EnrollmentStatusIn(BaseModel):
+    status: EnrollmentStatus
+
+
+class EnrollmentOut(ORM):
+    id: int
+    training: TrainingRef
+    company: CompanyRef
+    participant_name: str
+    participant_email: str
+    status: str
+    created_at: datetime
+
+
 # --- Matching --------------------------------------------------------------
 
 class SkillMatch(BaseModel):

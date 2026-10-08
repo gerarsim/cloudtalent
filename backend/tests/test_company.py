@@ -47,7 +47,7 @@ def test_entreprise_gere_sa_fiche(client):
         assert c.get("/api/companies/").status_code == 403
         assert c.get(f"/api/companies/{other['id']}").status_code == 403
         assert c.put(f"/api/companies/{other['id']}", json={"name": "X"}).status_code == 403
-        for path in ("/api/consultants/", "/api/users/", "/api/trainings/"):
+        for path in ("/api/consultants/", "/api/users/"):
             assert c.get(path).status_code == 403, path
         assert c.get("/api/skills/").status_code == 200
 
@@ -112,3 +112,70 @@ def test_seed_cree_compte_entreprise_demo():
         with login(anon, DEMO_COMPANY_EMAIL, DEMO_COMPANY_PASSWORD) as c:
             assert c.get("/api/companies/me").json()["name"] == "Demo Bank Luxembourg"
             assert [m["title"] for m in c.get("/api/missions/").json()] == ["Senior DevOps Engineer"]
+
+
+def test_propositions_de_consultants(client):
+    mine, other = make_company(client), make_company(client, name="Autre")
+    m = make_mission(client, company_id=mine["id"])
+    m_other = make_mission(client, title="Autre mission", company_id=other["id"])
+    cons = make_consultant(client, email="ahmed@example.com", tjm=700, reserve_pct=10)
+    client.put(f"/api/consultants/{cons['id']}/cv", files={"file": ("cv.pdf", b"%PDF cv")})
+    make_company_account(client, mine["id"])
+
+    r = client.post("/api/proposals/", json={"mission_id": m["id"], "consultant_id": cons["id"]})
+    assert r.status_code == 201, r.text
+    pid = r.json()["id"]
+    assert client.post("/api/proposals/", json={"mission_id": m["id"], "consultant_id": cons["id"]}).status_code == 409
+    theirs = client.post("/api/proposals/", json={"mission_id": m_other["id"], "consultant_id": cons["id"]}).json()
+
+    with as_company() as c:
+        props = c.get("/api/proposals/").json()
+        assert [p["id"] for p in props] == [pid]  # pas les propositions faites aux autres entreprises
+        prof = props[0]["consultant"]
+        assert prof["name"] == "Ahmed" and prof["cv"]["filename"] == "cv.pdf"
+        assert prof["skills"] and not {"tjm", "reserve_pct", "email", "monthly", "mission"} & prof.keys()
+
+        assert c.get(f"/api/proposals/{pid}/cv").content == b"%PDF cv"
+        assert c.get(f"/api/proposals/{theirs['id']}/cv").status_code == 404
+        assert c.get(f"/api/consultants/{cons['id']}/cv").status_code == 403  # seulement via la proposition
+
+        assert c.put(f"/api/proposals/{pid}", json={"status": "Retenu"}).json()["status"] == "Retenu"
+        assert c.put(f"/api/proposals/{theirs['id']}", json={"status": "Retenu"}).status_code == 404
+        assert c.post("/api/proposals/", json={"mission_id": m["id"], "consultant_id": cons["id"]}).status_code == 403
+        assert c.delete(f"/api/proposals/{pid}").status_code == 403
+
+    assert client.get(f"/api/proposals/?mission_id={m['id']}").json()[0]["status"] == "Retenu"
+    assert client.delete(f"/api/proposals/{pid}").status_code == 204
+
+
+def test_formations_et_inscriptions(client):
+    mine, other = make_company(client), make_company(client, name="Autre")
+    t = client.post("/api/trainings/", json={"title": "Terraform", "price": 900}).json()
+    make_company_account(client, mine["id"])
+    make_company_account(client, other["id"], email="rh@autre.lu")
+
+    with as_company() as c:
+        assert [x["title"] for x in c.get("/api/trainings/").json()] == ["Terraform"]
+        assert c.post("/api/trainings/", json={"title": "X"}).status_code == 403
+        assert c.put(f"/api/trainings/{t['id']}", json={"title": "X"}).status_code == 403
+
+        r = c.post("/api/enrollments/", json={"training_id": t["id"], "participant_name": "Léa Martin",
+                                              "participant_email": "Lea@Banque.lu"})
+        assert r.status_code == 201, r.text
+        e = r.json()
+        assert (e["status"], e["company"]["id"], e["participant_email"]) == ("Demandée", mine["id"], "lea@banque.lu")
+        assert c.post("/api/enrollments/", json={"training_id": 999, "participant_name": "X",
+                                                 "participant_email": "x@x.lu"}).status_code == 422
+        # Seul CloudTalent confirme ; l'entreprise peut annuler
+        assert c.put(f"/api/enrollments/{e['id']}", json={"status": "Confirmée"}).status_code == 403
+
+    with as_company("rh@autre.lu") as c:
+        assert c.get("/api/enrollments/").json() == []
+        assert c.put(f"/api/enrollments/{e['id']}", json={"status": "Annulée"}).status_code == 404
+
+    assert client.put(f"/api/enrollments/{e['id']}", json={"status": "Confirmée"}).json()["status"] == "Confirmée"
+    assert client.get(f"/api/enrollments/?training_id={t['id']}").json()[0]["participant_name"] == "Léa Martin"
+    assert client.post("/api/enrollments/", json={"training_id": t["id"], "participant_name": "X",
+                                                  "participant_email": "x@x.lu"}).status_code == 403
+    with as_company() as c:
+        assert c.put(f"/api/enrollments/{e['id']}", json={"status": "Annulée"}).json()["status"] == "Annulée"

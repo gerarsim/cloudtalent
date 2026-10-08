@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..auth import require_admin, require_admin_or_company
 from ..database import get_db
 from ..models import Training
 from ..schemas import TrainingIn, TrainingOut
 from ..skills import get_or_create_skill
 from .common import get_or_404
 
-router = APIRouter(prefix="/trainings", tags=["Formations"])
+# Catalogue visible par les entreprises partenaires ; création et modification réservées à l'admin
+router = APIRouter(prefix="/trainings", tags=["Formations"], dependencies=[Depends(require_admin_or_company)])
 
 
 def _apply(db: Session, obj: Training, data: TrainingIn) -> None:
@@ -27,7 +29,7 @@ def get_training(training_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, Training, training_id, "Formation")
 
 
-@router.post("/", response_model=TrainingOut, status_code=201)
+@router.post("/", response_model=TrainingOut, status_code=201, dependencies=[Depends(require_admin)])
 def create_training(data: TrainingIn, db: Session = Depends(get_db)):
     obj = Training()
     _apply(db, obj, data)
@@ -37,7 +39,7 @@ def create_training(data: TrainingIn, db: Session = Depends(get_db)):
     return obj
 
 
-@router.put("/{training_id}", response_model=TrainingOut)
+@router.put("/{training_id}", response_model=TrainingOut, dependencies=[Depends(require_admin)])
 def update_training(training_id: int, data: TrainingIn, db: Session = Depends(get_db)):
     obj = get_or_404(db, Training, training_id, "Formation")
     _apply(db, obj, data)
@@ -46,7 +48,7 @@ def update_training(training_id: int, data: TrainingIn, db: Session = Depends(ge
     return obj
 
 
-@router.delete("/{training_id}", status_code=204)
+@router.delete("/{training_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_training(training_id: int, db: Session = Depends(get_db)):
     db.delete(get_or_404(db, Training, training_id, "Formation"))
     db.commit()

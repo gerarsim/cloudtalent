@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, euro, frDate, LEVELS } from "../api.js";
 import { Alert, Modal } from "./ui.jsx";
 
@@ -26,6 +26,33 @@ export default function Matches({ mission, onClose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [onlyEligible, setOnlyEligible] = useState(false);
+  // Propositions déjà faites à l'entreprise pour cette mission, par consultant
+  const [proposals, setProposals] = useState({});
+
+  const loadProposals = useCallback(() => {
+    api(`/proposals/?mission_id=${mission.id}`)
+      .then((list) => setProposals(Object.fromEntries(list.map((p) => [p.consultant.id, p]))))
+      .catch((e) => setError(e.message));
+  }, [mission.id]);
+  useEffect(loadProposals, [loadProposals]);
+
+  const propose = async (consultantId) => {
+    try {
+      await api("/proposals/", { method: "POST", body: { mission_id: mission.id, consultant_id: consultantId } });
+      loadProposals();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const withdraw = async (p) => {
+    if (!window.confirm("Retirer cette proposition ?")) return;
+    try {
+      await api(`/proposals/${p.id}`, { method: "DELETE" });
+      loadProposals();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   useEffect(() => {
     setData(null);
@@ -43,7 +70,7 @@ export default function Matches({ mission, onClose }) {
           Uniquement les profils éligibles
         </label>
       </div>
-      <Alert>{error}</Alert>
+      <Alert onClose={() => setError(null)}>{error}</Alert>
       {mission.skills.length === 0 && <p className="muted">Ajoutez des compétences à la mission pour lancer le matching.</p>}
       {data === null && !error && mission.skills.length > 0 && <p className="muted">Calcul…</p>}
       {data?.length === 0 && mission.skills.length > 0 && <p className="muted">Aucun consultant ne correspond.</p>}
@@ -69,6 +96,20 @@ export default function Matches({ mission, onClose }) {
                 {m.matched.map((s) => <SkillTag key={s.name} s={s} />)}
                 {m.missing.map((s) => <SkillTag key={s.name} s={s} missing />)}
               </div>
+              {mission.company && (
+                <div className="proposal-actions">
+                  {proposals[m.consultant.id] ? (
+                    <>
+                      <span className={`status s-${proposals[m.consultant.id].status}`}>
+                        {proposals[m.consultant.id].status === "Proposé" ? `Proposé à ${mission.company.name}` : proposals[m.consultant.id].status}
+                      </span>
+                      <button className="link danger" onClick={() => withdraw(proposals[m.consultant.id])}>Retirer</button>
+                    </>
+                  ) : (
+                    <button className="primary small" onClick={() => propose(m.consultant.id)}>Proposer à {mission.company.name}</button>
+                  )}
+                </div>
+              )}
             </div>
           </li>
         ))}
