@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { api, euro, frDate, hasToken, setToken, setUnauthorizedHandler, ROLES } from "./api.js";
+import { api, download, euro, frDate, hasToken, setToken, setUnauthorizedHandler, ROLES } from "./api.js";
 import { Alert, Page, SkillChips, Table } from "./components/ui.jsx";
 import { CompanyForm, ConsultantForm, MissionForm, TrainingForm, UserForm } from "./components/forms.jsx";
 import Header from "./components/Header.jsx";
@@ -99,6 +99,11 @@ function App({ user, onLogout }) {
                     { key: "skills", label: "Compétences", render: (x) => <SkillChips items={x.skills} /> },
                     { key: "tjm", label: "TJM", render: (x) => euro(x.tjm) },
                     { key: "reserve", label: "Réserve", render: (x) => x.reserve_pct ? <>{euro(x.reserve_amount)}<div className="muted">{x.reserve_pct} %</div></> : "—" },
+                    { key: "salary", label: "Salaire / mois", render: (x) => <>{euro(x.monthly.salary)}<div className="muted">{x.days_per_month} j</div></> },
+                    { key: "mission", label: "Mission", render: (x) => x.mission?.title ?? "—" },
+                    { key: "cv", label: "CV", render: (x) => x.cv
+                      ? <button className="link" onClick={() => download(`/consultants/${x.id}/cv`, x.cv.filename).catch((e) => setError(e.message))}>Télécharger</button>
+                      : "—" },
                     { key: "avail", label: "Disponibilité", render: (x) => x.available_from && x.available_from > today() ? frDate(x.available_from) : "Immédiate" },
                     { key: "status", label: "Statut" },
                   ]} />
@@ -174,7 +179,7 @@ function App({ user, onLogout }) {
         )}
       </main>
 
-      {modal?.kind === "consultant" && <ConsultantForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
+      {modal?.kind === "consultant" && <ConsultantForm item={modal.item} catalog={data.skills} missions={data.missions} onClose={close} onSaved={saved} />}
       {modal?.kind === "company" && <CompanyForm item={modal.item} onClose={close} onSaved={saved} />}
       {modal?.kind === "mission" && <MissionForm item={modal.item} catalog={data.skills} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "training" && <TrainingForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}

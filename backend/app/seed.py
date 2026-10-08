@@ -42,7 +42,7 @@ def seed(db: Session) -> None:
 
     ahmed = Consultant(
         name="Ahmed Benali", title="Senior DevOps Engineer", email="ahmed.benali@example.com",
-        experience_years=8, tjm=700, status="Freelance",
+        experience_years=8, tjm=700, reserve_pct=10, status="Portage",
         skills=_cskills(db, {"AWS": 5, "EKS": 4, "Kubernetes": 4, "Terraform": 4, "Docker": 4,
                              "GitLab CI/CD": 4, "ArgoCD": 3, "Linux": 4}),
     )
@@ -69,12 +69,15 @@ def seed(db: Session) -> None:
 
     mission_skills = {"AWS": (True, 4), "EKS": (True, 3), "Kubernetes": (True, 4),
                       "Terraform": (True, 3), "GitLab CI/CD": (False, 3), "ArgoCD": (False, 3)}
-    db.add(Mission(
+    mission = Mission(
         title="Senior DevOps Engineer", company_id=bank.id, location="Luxembourg",
         duration_months=6, start_date=today + timedelta(days=14), tjm_max=800, status="Ouverte",
         skills=[MissionSkill(skill_id=get_or_create_skill(db, n).id, required=r, min_level=l)
                 for n, (r, l) in mission_skills.items()],
-    ))
+    )
+    db.add(mission)
+    db.flush()
+    ahmed.mission_id = mission.id  # mission en cours visible dans l'espace consultant
 
     db.add_all([
         Training(title="AWS & Kubernetes pour DevOps", skill_id=get_or_create_skill(db, "Kubernetes").id,
