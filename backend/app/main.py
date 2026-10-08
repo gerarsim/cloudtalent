@@ -5,9 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .auth import current_user, ensure_admin, require_admin
+from .auth import current_user, ensure_admin
 from .database import SessionLocal
-from .routers import auth, companies, consultants, missions, skills, training, users
+from .routers import auth, companies, consultants, enrollments, missions, proposals, skills, training, users
 from .seed import seed
 
 log = logging.getLogger("cloudtalent")
@@ -52,7 +52,9 @@ app.include_router(consultants.router, prefix="/api")
 app.include_router(skills.router, prefix="/api", dependencies=[Depends(current_user)])
 app.include_router(companies.router, prefix="/api")
 app.include_router(missions.router, prefix="/api")
-app.include_router(training.router, prefix="/api", dependencies=[Depends(require_admin)])
+app.include_router(training.router, prefix="/api")
+app.include_router(proposals.router, prefix="/api")
+app.include_router(enrollments.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["Système"])

@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .auth import hash_password
-from .models import Company, Consultant, ConsultantSkill, Mission, MissionSkill, Training, User
+from .models import Company, Consultant, ConsultantSkill, Mission, MissionSkill, Proposal, Training, User
 from .skills import get_or_create_skill
 
 
@@ -69,7 +69,7 @@ def seed(db: Session) -> None:
             skills=_cskills(db, {"Azure": 5, "AKS": 4, "Terraform": 3, "Azure DevOps": 4, "Docker": 3,
                                  "PowerShell": 4}),
         ),
-        Consultant(
+        marc := Consultant(
             name="Marc Dupont", title="Platform Engineer", email="marc.dupont@example.com",
             experience_years=10, tjm=750, status="Freelance",
             skills=_cskills(db, {"AWS": 4, "Kubernetes": 5, "Terraform": 5, "Helm": 4, "ArgoCD": 4,
@@ -95,6 +95,7 @@ def seed(db: Session) -> None:
     db.add(mission)
     db.flush()
     ahmed.mission_id = mission.id  # mission en cours visible dans l'espace consultant
+    db.add(Proposal(mission_id=mission.id, consultant_id=marc.id))  # profil proposé à Demo Bank
 
     db.add_all([
         Training(title="AWS & Kubernetes pour DevOps", skill_id=get_or_create_skill(db, "Kubernetes").id,

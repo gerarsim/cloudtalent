@@ -11,6 +11,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
@@ -191,6 +192,45 @@ class Training(Base):
     skill: Mapped[Skill | None] = relationship(lazy="joined")
 
 
+class Proposal(Base):
+    """Consultant proposé par CloudTalent à une entreprise pour une de ses missions."""
+    __tablename__ = "proposals"
+    __table_args__ = (
+        UniqueConstraint("mission_id", "consultant_id", name="uq_proposal_mission_consultant"),
+        CheckConstraint("status IN ('Proposé', 'Retenu', 'Refusé')", name="ck_proposal_status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mission_id: Mapped[int] = mapped_column(ForeignKey("missions.id", ondelete="CASCADE"), index=True, nullable=False)
+    consultant_id: Mapped[int] = mapped_column(
+        ForeignKey("consultants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), default="Proposé", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    mission: Mapped[Mission] = relationship(lazy="joined")
+    consultant: Mapped[Consultant] = relationship(lazy="joined")
+
+
+class Enrollment(Base):
+    """Inscription d'un collaborateur d'une entreprise partenaire à une formation."""
+    __tablename__ = "enrollments"
+    __table_args__ = (
+        CheckConstraint("status IN ('Demandée', 'Confirmée', 'Annulée')", name="ck_enrollment_status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    training_id: Mapped[int] = mapped_column(ForeignKey("trainings.id", ondelete="CASCADE"), index=True, nullable=False)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True, nullable=False)
+    participant_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    participant_email: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="Demandée", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    training: Mapped[Training] = relationship(lazy="joined")
+    company: Mapped[Company] = relationship(lazy="joined")
+
+
 __all__ = [
     "Skill",
     "ConsultantSkill",
@@ -200,4 +240,6 @@ __all__ = [
     "Mission",
     "Training",
     "User",
+    "Proposal",
+    "Enrollment",
 ]
