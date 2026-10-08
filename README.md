@@ -25,7 +25,7 @@ Puis ouvrir :
 
 ## Comptes et rôles
 
-L'application demande une connexion. Trois rôles :
+L'accueil propose trois espaces sous forme d'icônes (Administrateur, Consultant, Entreprise partenaire) ; on choisit son espace puis on se connecte. Un compte ne peut entrer que dans l'espace de son rôle. Trois rôles :
 
 | Rôle | Droits |
 |------|--------|
