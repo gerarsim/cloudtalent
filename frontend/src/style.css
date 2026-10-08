@@ -98,3 +98,11 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
 .stat{display:flex;flex-direction:column;gap:2px;padding:14px;border:1px solid #e2e8f0;border-radius:10px}
 .stat b{font-size:20px}
 .status.s-inactive{background:#f1f5f9;color:#64748b}
+.my-profile{display:flex;flex-direction:column;gap:18px}
+.pay-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.pay-calc{width:100%;border-collapse:collapse}
+.pay-calc td{padding:8px 0;border-bottom:1px solid #e2e8f0}
+.pay-calc td:last-child{text-align:right}
+.pay-calc tr.total td{border-bottom:none;font-size:18px}
+.pay-calc b,.pay-inputs b{display:inline;font-size:inherit}
+.cv-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}

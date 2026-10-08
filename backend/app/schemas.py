@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, computed_field
@@ -50,16 +50,51 @@ class MissionSkillOut(ORM):
 
 # --- Consultants -----------------------------------------------------------
 
-class ConsultantIn(BaseModel):
-    name: Name
+DaysPerMonth = Annotated[int, Field(ge=0, le=31, description="Jours facturés par mois")]
+
+
+class ConsultantSelfIn(BaseModel):
+    """Ce qu'un consultant peut modifier sur sa propre fiche. Nom, email, TJM, statut et
+    mission sont gérés par un admin."""
     title: Name
-    email: EmailStr | None = None
     experience_years: Annotated[int, Field(ge=0, le=60)] = 0
-    tjm: Money = 0
     reserve_pct: Percent = 0
+    days_per_month: DaysPerMonth = 20
     available_from: date | None = None
-    status: ConsultantStatus = "Freelance"
     skills: list[SkillLevelIn] = []
+
+
+class ConsultantIn(ConsultantSelfIn):
+    name: Name
+    email: EmailStr | None = None
+    tjm: Money = 0
+    status: ConsultantStatus = "Freelance"
+    mission_id: int | None = None
+
+
+class CvOut(ORM):
+    filename: str
+    content_type: str
+    size: int
+    uploaded_at: datetime
+
+
+class ConsultantMissionOut(ORM):
+    id: int
+    title: str
+    company: "CompanyRef | None"
+    location: str
+    start_date: date | None
+    duration_months: int | None
+    status: str
+
+
+class SalaryOut(BaseModel):
+    """Estimation mensuelle : chiffre d'affaires, réserve, salaire (avant charges sociales)."""
+    days_per_month: int
+    revenue: float = Field(description="TJM × jours facturés")
+    reserve: float = Field(description="Chiffre d'affaires × réserve %")
+    salary: float = Field(description="Chiffre d'affaires − réserve, avant charges sociales")
 
 
 class ConsultantOut(ORM):
@@ -70,9 +105,12 @@ class ConsultantOut(ORM):
     experience_years: int
     tjm: float
     reserve_pct: float
+    days_per_month: int
     available_from: date | None
     status: str
     skills: list[ConsultantSkillOut]
+    mission: ConsultantMissionOut | None
+    cv: CvOut | None
 
     @computed_field(description="Montant mis en réserve par jour (TJM × réserve %)")
     @property
@@ -83,6 +121,14 @@ class ConsultantOut(ORM):
     @property
     def tjm_net(self) -> float:
         return round(self.tjm - self.reserve_amount, 2)
+
+    @computed_field(description="Calcul du salaire mensuel")
+    @property
+    def monthly(self) -> SalaryOut:
+        revenue = round(self.tjm * self.days_per_month, 2)
+        reserve = round(revenue * self.reserve_pct / 100, 2)
+        return SalaryOut(days_per_month=self.days_per_month, revenue=revenue, reserve=reserve,
+                         salary=round(revenue - reserve, 2))
 
 
 # --- Entreprises -----------------------------------------------------------
@@ -107,6 +153,9 @@ class CompanyOut(ORM):
 class CompanyRef(ORM):
     id: int
     name: str
+
+
+ConsultantMissionOut.model_rebuild()  # CompanyRef est déclaré après
 
 
 # --- Missions --------------------------------------------------------------

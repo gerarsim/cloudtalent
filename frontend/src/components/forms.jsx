@@ -38,43 +38,68 @@ function Actions({ busy, onClose, item }) {
 const num = (x) => (x === "" || x === null || x === undefined ? 0 : Number(x));
 const intOrNull = (x) => (x === "" || x === null || x === undefined ? null : parseInt(x, 10));
 
-/** `self` : le consultant modifie sa propre fiche (PUT /consultants/me). */
-export function ConsultantForm({ item, catalog, self, onClose, onSaved }) {
+/** Calcul mensuel affiché au consultant et à l'admin (même formule que l'API). */
+export function salary(tjm, reservePct, days) {
+  const revenue = num(tjm) * num(days);
+  const reserve = revenue * num(reservePct) / 100;
+  return { revenue, reserve, salary: revenue - reserve };
+}
+
+/** `self` : le consultant modifie sa propre fiche (PUT /consultants/me). Nom, email, statut,
+ *  TJM et mission restent gérés par l'admin ; réserve et jours se règlent sur « Mon profil ». */
+export function ConsultantForm({ item, catalog, missions = [], self, onClose, onSaved }) {
   const f = useForm(
     {
       name: item?.name ?? "", title: item?.title ?? "", email: item?.email ?? "",
       experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "",
-      reserve_pct: item?.reserve_pct ?? 0,
+      reserve_pct: item?.reserve_pct ?? 0, days_per_month: item?.days_per_month ?? 20,
+      mission_id: item?.mission?.id ?? "",
       available_from: item?.available_from ?? "", status: item?.status ?? "Freelance",
       skills: item ? toEditor(item.skills, "consultant") : [{ name: "", level: 3 }],
     },
     {
       path: "/consultants/", item, onSaved, url: self ? "/consultants/me" : undefined,
-      toBody: (v) => ({
-        ...v, email: orNull(v.email.trim()), available_from: orNull(v.available_from),
-        experience_years: num(v.experience_years), tjm: num(v.tjm), reserve_pct: num(v.reserve_pct),
-        skills: cleanSkills(v.skills),
-      }),
+      toBody: (v) => {
+        const common = {
+          title: v.title, experience_years: num(v.experience_years), reserve_pct: num(v.reserve_pct),
+          days_per_month: num(v.days_per_month), available_from: orNull(v.available_from),
+          skills: cleanSkills(v.skills),
+        };
+        return self ? common : {
+          ...common, name: v.name, email: orNull(v.email.trim()), tjm: num(v.tjm), status: v.status,
+          mission_id: intOrNull(v.mission_id),
+        };
+      },
     }
   );
   const { v, set } = f;
+  const pay = salary(v.tjm, v.reserve_pct, v.days_per_month);
   return (
-    <Modal title={self ? "Modifier ma fiche" : item ? "Modifier le consultant" : "Nouveau consultant"} onClose={onClose}>
+    <Modal title={self ? "Modifier mon profil" : item ? "Modifier le consultant" : "Nouveau consultant"} onClose={onClose}>
       <form onSubmit={f.submit} className="grid-form">
-        <Field label="Nom *"><input required value={v.name} onChange={set("name")} autoFocus /></Field>
-        <Field label="Profil *"><input required value={v.title} onChange={set("title")} placeholder="Senior DevOps Engineer" /></Field>
-        <Field label="Email"><input type="email" value={v.email} onChange={set("email")} /></Field>
-        <Field label="Statut">
-          <select value={v.status} onChange={set("status")}>{CONSULTANT_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
-        </Field>
+        {!self && <Field label="Nom *"><input required value={v.name} onChange={set("name")} autoFocus /></Field>}
+        <Field label="Profil *"><input required value={v.title} onChange={set("title")} placeholder="Senior DevOps Engineer" autoFocus={self} /></Field>
+        {!self && <>
+          <Field label="Email"><input type="email" value={v.email} onChange={set("email")} /></Field>
+          <Field label="Statut">
+            <select value={v.status} onChange={set("status")}>{CONSULTANT_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
+          </Field>
+        </>}
         <Field label="Expérience (ans)"><input type="number" min="0" max="60" value={v.experience_years} onChange={set("experience_years")} /></Field>
-        <Field label="TJM (€)"><input type="number" min="0" step="10" value={v.tjm} onChange={set("tjm")} /></Field>
-        <Field label="Réserve (% du TJM)">
-          <input type="number" min="0" max="100" step="1" value={v.reserve_pct} onChange={set("reserve_pct")} />
-          <small className="muted">
-            {euro(num(v.tjm) * num(v.reserve_pct) / 100)} / jour en réserve · net {euro(num(v.tjm) * (1 - num(v.reserve_pct) / 100))}
-          </small>
-        </Field>
+        {!self && <>
+          <Field label="TJM (€)"><input type="number" min="0" step="10" value={v.tjm} onChange={set("tjm")} /></Field>
+          <Field label="Mission en cours">
+            <select value={v.mission_id} onChange={set("mission_id")}>
+              <option value="">Aucune</option>
+              {missions.map((m) => <option key={m.id} value={m.id}>{m.title}{m.company ? ` · ${m.company.name}` : ""}</option>)}
+            </select>
+          </Field>
+          <Field label="Réserve (% du CA)"><input type="number" min="0" max="100" step="1" value={v.reserve_pct} onChange={set("reserve_pct")} /></Field>
+          <Field label="Jours facturés / mois">
+            <input type="number" min="0" max="31" value={v.days_per_month} onChange={set("days_per_month")} />
+            <small className="muted">CA {euro(pay.revenue)} · réserve {euro(pay.reserve)} · salaire {euro(pay.salary)}</small>
+          </Field>
+        </>}
         <Field label="Disponible à partir du"><input type="date" value={v.available_from} onChange={set("available_from")} /></Field>
         <Field label="Compétences" wide>
           <SkillsEditor mode="consultant" value={v.skills} onChange={set("skills")} catalog={catalog} />

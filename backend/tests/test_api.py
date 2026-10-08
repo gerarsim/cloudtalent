@@ -139,3 +139,19 @@ def test_reserve_salaire(client):
 
     for bad in (-1, 101):
         assert client.post("/api/consultants/", json={"name": "X", "title": "Y", "reserve_pct": bad}).status_code == 422
+
+
+def test_seed_cree_compte_demo_sur_base_existante(client):
+    """Base remplie avant les comptes : le seed ne repasse pas, mais le compte démo doit exister."""
+    from app.database import SessionLocal
+    from app.seed import DEMO_EMAIL, DEMO_PASSWORD, seed
+
+    make_consultant(client, name="Ahmed Benali", email=DEMO_EMAIL)
+    db = SessionLocal()
+    try:
+        seed(db)
+        seed(db)
+    finally:
+        db.close()
+    r = client.post("/api/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
+    assert r.status_code == 200 and r.json()["user"]["role"] == "consultant"

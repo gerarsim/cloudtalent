@@ -27,13 +27,13 @@ export const hasToken = () => Boolean(token);
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
-export async function api(path, { method = "GET", body } = {}) {
+async function send(path, { method = "GET", body, form } = {}) {
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(BASE + path, { method, headers, body: form ?? (body ? JSON.stringify(body) : undefined) });
   } catch {
     throw new Error("API injoignable. Le backend est-il démarré ?");
   }
@@ -41,10 +41,31 @@ export async function api(path, { method = "GET", body } = {}) {
     setToken(null);
     onUnauthorized();
   }
-  if (res.status === 204) return null;
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(errorMessage(res.status, data));
-  return data;
+  if (!res.ok) throw new Error(errorMessage(res.status, await res.json().catch(() => null)));
+  return res;
+}
+
+export async function api(path, opts) {
+  const res = await send(path, opts);
+  return res.status === 204 ? null : res.json().catch(() => null);
+}
+
+/** Envoi d'un fichier (multipart, champ `file`). */
+export const upload = (path, file, method = "PUT") => {
+  const form = new FormData();
+  form.append("file", file);
+  return api(path, { method, form });
+};
+
+/** Téléchargement authentifié : le jeton ne passe pas dans un simple lien <a href>. */
+export async function download(path, filename) {
+  const blob = await (await send(path)).blob();
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export const LEVELS = { 1: "Notions", 2: "Junior", 3: "Autonome", 4: "Confirmé", 5: "Expert" };
@@ -56,4 +77,5 @@ export const TRAINING_LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
 // "" -> null pour les champs optionnels (l'API refuse un email vide, une date vide…)
 export const orNull = (v) => (v === "" || v === undefined ? null : v);
 export const euro = (n) => (n ? `${Number(n).toLocaleString("fr-FR")} €` : "—");
+export const fileSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} Mo` : `${Math.ceil(n / 1024)} Ko`);
 export const frDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "—");
