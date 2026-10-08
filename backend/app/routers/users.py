@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import hash_password, require_admin
 from ..database import get_db
-from ..models import Consultant, User
+from ..models import Company, Consultant, User
 from ..schemas import UserIn, UserOut, UserUpdate
 from .common import get_or_404
 
@@ -19,9 +19,15 @@ def _apply(db: Session, obj: User, data: UserIn | UserUpdate) -> None:
             raise HTTPException(status_code=422, detail="Un compte consultant doit être rattaché à une fiche consultant")
         if db.get(Consultant, data.consultant_id) is None:
             raise HTTPException(status_code=422, detail=f"Consultant {data.consultant_id} introuvable")
+    if data.role == "company":
+        if data.company_id is None:
+            raise HTTPException(status_code=422, detail="Un compte entreprise doit être rattaché à une entreprise")
+        if db.get(Company, data.company_id) is None:
+            raise HTTPException(status_code=422, detail=f"Entreprise {data.company_id} introuvable")
     obj.email = data.email.lower()
     obj.role = data.role
     obj.consultant_id = data.consultant_id if data.role == "consultant" else None
+    obj.company_id = data.company_id if data.role == "company" else None
     obj.active = data.active
     if data.password:
         obj.password_hash = hash_password(data.password)

@@ -25,16 +25,20 @@ Puis ouvrir :
 
 ## Comptes et rôles
 
-L'application demande une connexion. Deux rôles :
+L'application demande une connexion. Trois rôles :
 
 | Rôle | Droits |
 |------|--------|
 | **Administrateur** | Accès complet : consultants, entreprises, missions, formations, matching, gestion des comptes (onglet « Utilisateurs »). |
 | **Consultant** | Voit **uniquement son profil** (« Mon profil ») : sa mission en cours, son TJM, le calcul de son salaire mensuel, son CV et ses compétences. Il choisit son **pourcentage de réserve** et ses jours facturés, envoie son CV (PDF/DOC/DOCX/ODT, 5 Mo), et modifie profil, compétences, disponibilité et mot de passe. Nom, email, TJM, statut et mission sont gérés par l'admin. Tout le reste renvoie 403. |
+| **Entreprise partenaire** | Gère **sa fiche entreprise** (coordonnées, TVA, site, présentation) et **publie ses missions** (postes à pourvoir : descriptif, compétences, TJM max, dates, statut). Ne voit que ses propres missions, ni les consultants ni le matching. |
 
 - Le compte admin est créé au démarrage depuis `ADMIN_EMAIL` / `ADMIN_PASSWORD` s'il n'existe aucun admin
   (en dev : `admin@cloudtalent.lu` / `admin1234`, voir `docker-compose.yml`).
-- Données de démo : compte consultant `ahmed.benali@example.com` / `consultant123`.
+- Données de démo : compte consultant `ahmed.benali@example.com` / `consultant123`,
+  compte entreprise `rh@demobank.example.com` / `entreprise123` (Demo Bank Luxembourg).
+- Un compte entreprise est créé par l'admin (onglet « Utilisateurs », rôle « Entreprise partenaire ») et rattaché à une
+  entreprise ; supprimer l'entreprise supprime ses comptes, ses missions sont conservées.
 - Un compte consultant est rattaché à une fiche consultant ; supprimer la fiche supprime le compte.
 - Salaire mensuel affiché = TJM × jours facturés − réserve (% du chiffre d'affaires), **avant charges sociales**.
 - `SECRET_KEY` signe les jetons de session (12 h, `TOKEN_TTL_SECONDS`). **À changer hors poste local.**

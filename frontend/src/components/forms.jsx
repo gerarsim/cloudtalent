@@ -111,12 +111,13 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
   );
 }
 
-export function MissionForm({ item, catalog, companies, onClose, onSaved }) {
+/** `own` : mission saisie par une entreprise partenaire (toujours rattachée à elle par l'API). */
+export function MissionForm({ item, catalog, companies = [], own, onClose, onSaved }) {
   const f = useForm(
     {
       title: item?.title ?? "", company_id: item?.company?.id ?? "", location: item?.location ?? "Luxembourg",
       duration_months: item?.duration_months ?? "", start_date: item?.start_date ?? "",
-      tjm_max: item?.tjm_max ?? "", status: item?.status ?? "Ouverte",
+      tjm_max: item?.tjm_max ?? "", status: item?.status ?? "Ouverte", description: item?.description ?? "",
       skills: item ? toEditor(item.skills, "mission") : [{ name: "", min_level: 3, required: true }],
     },
     {
@@ -132,18 +133,24 @@ export function MissionForm({ item, catalog, companies, onClose, onSaved }) {
     <Modal title={item ? "Modifier la mission" : "Nouvelle mission"} onClose={onClose}>
       <form onSubmit={f.submit} className="grid-form">
         <Field label="Intitulé *" wide><input required value={v.title} onChange={set("title")} autoFocus /></Field>
-        <Field label="Entreprise">
-          <select value={v.company_id} onChange={set("company_id")}>
-            <option value="">—</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
+        {!own && (
+          <Field label="Entreprise">
+            <select value={v.company_id} onChange={set("company_id")}>
+              <option value="">—</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Lieu"><input value={v.location} onChange={set("location")} /></Field>
         <Field label="Démarrage"><input type="date" value={v.start_date} onChange={set("start_date")} /></Field>
         <Field label="Durée (mois)"><input type="number" min="1" max="60" value={v.duration_months} onChange={set("duration_months")} /></Field>
         <Field label="TJM max (€)"><input type="number" min="0" step="10" value={v.tjm_max} onChange={set("tjm_max")} /></Field>
         <Field label="Statut">
           <select value={v.status} onChange={set("status")}>{MISSION_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
+        </Field>
+        <Field label="Descriptif du poste" wide>
+          <textarea rows={4} maxLength={5000} value={v.description} onChange={set("description")}
+                    placeholder="Contexte, responsabilités, environnement…" />
         </Field>
         <Field label="Compétences recherchées" wide>
           <SkillsEditor mode="mission" value={v.skills} onChange={set("skills")} catalog={catalog} />
@@ -155,23 +162,37 @@ export function MissionForm({ item, catalog, companies, onClose, onSaved }) {
   );
 }
 
-export function CompanyForm({ item, onClose, onSaved }) {
+/** `self` : l'entreprise partenaire modifie sa propre fiche (PUT /companies/me). */
+export function CompanyForm({ item, self, onClose, onSaved }) {
   const f = useForm(
     {
       name: item?.name ?? "", sector: item?.sector ?? "", city: item?.city ?? "Luxembourg",
-      contact_name: item?.contact_name ?? "", email: item?.email ?? "",
+      contact_name: item?.contact_name ?? "", email: item?.email ?? "", phone: item?.phone ?? "",
+      website: item?.website ?? "", address: item?.address ?? "", vat_number: item?.vat_number ?? "",
+      description: item?.description ?? "",
     },
-    { path: "/companies/", item, onSaved, toBody: (v) => ({ ...v, email: orNull(v.email.trim()) }) }
+    {
+      path: "/companies/", item, onSaved, url: self ? "/companies/me" : undefined,
+      toBody: (v) => ({ ...v, email: orNull(v.email.trim()) }),
+    }
   );
   const { v, set } = f;
   return (
-    <Modal title={item ? "Modifier l'entreprise" : "Nouvelle entreprise"} onClose={onClose}>
+    <Modal title={self ? "Modifier mon entreprise" : item ? "Modifier l'entreprise" : "Nouvelle entreprise"} onClose={onClose}>
       <form onSubmit={f.submit} className="grid-form">
         <Field label="Nom *" wide><input required value={v.name} onChange={set("name")} autoFocus /></Field>
         <Field label="Secteur"><input value={v.sector} onChange={set("sector")} placeholder="Banking, Assurance…" /></Field>
+        <Field label="N° TVA"><input value={v.vat_number} onChange={set("vat_number")} placeholder="LU12345678" /></Field>
+        <Field label="Adresse" wide><input value={v.address} onChange={set("address")} /></Field>
         <Field label="Ville"><input value={v.city} onChange={set("city")} /></Field>
+        <Field label="Site web"><input type="url" value={v.website} onChange={set("website")} placeholder="https://" /></Field>
         <Field label="Contact"><input value={v.contact_name} onChange={set("contact_name")} /></Field>
         <Field label="Email"><input type="email" value={v.email} onChange={set("email")} /></Field>
+        <Field label="Téléphone"><input type="tel" value={v.phone} onChange={set("phone")} /></Field>
+        <Field label="Présentation" wide>
+          <textarea rows={4} maxLength={5000} value={v.description} onChange={set("description")}
+                    placeholder="Activité, environnement technique, culture…" />
+        </Field>
         <Alert onClose={() => f.setError(null)}>{f.error}</Alert>
         <Actions busy={f.busy} onClose={onClose} item={item} />
       </form>
@@ -212,17 +233,18 @@ export function TrainingForm({ item, catalog, onClose, onSaved }) {
   );
 }
 
-export function UserForm({ item, consultants, onClose, onSaved }) {
+export function UserForm({ item, consultants, companies, onClose, onSaved }) {
   const f = useForm(
     {
       email: item?.email ?? "", password: "", role: item?.role ?? "consultant",
-      consultant_id: item?.consultant_id ?? "", active: item?.active ?? true,
+      consultant_id: item?.consultant_id ?? "", company_id: item?.company_id ?? "", active: item?.active ?? true,
     },
     {
       path: "/users/", item, onSaved,
       toBody: (v) => ({
         ...v, email: v.email.trim(), password: orNull(v.password),
-        consultant_id: v.role === "consultant" ? (v.consultant_id === "" ? null : Number(v.consultant_id)) : null,
+        consultant_id: v.role === "consultant" ? intOrNull(v.consultant_id) : null,
+        company_id: v.role === "company" ? intOrNull(v.company_id) : null,
       }),
     }
   );
@@ -245,6 +267,14 @@ export function UserForm({ item, consultants, onClose, onSaved }) {
             <select required value={v.consultant_id} onChange={set("consultant_id")}>
               <option value="">—</option>
               {consultants.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {v.role === "company" && (
+          <Field label="Entreprise *">
+            <select required value={v.company_id} onChange={set("company_id")}>
+              <option value="">—</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
         )}

@@ -71,7 +71,7 @@ export async function download(path, filename) {
 export const LEVELS = { 1: "Notions", 2: "Junior", 3: "Autonome", 4: "Confirmé", 5: "Expert" };
 export const CONSULTANT_STATUSES = ["Freelance", "Portage", "CDI", "Salarié"];
 export const MISSION_STATUSES = ["Ouverte", "Pourvue", "Fermée"];
-export const ROLES = { admin: "Administrateur", consultant: "Consultant" };
+export const ROLES = { admin: "Administrateur", consultant: "Consultant", company: "Entreprise partenaire" };
 export const TRAINING_LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
 
 // "" -> null pour les champs optionnels (l'API refuse un email vide, une date vide…)

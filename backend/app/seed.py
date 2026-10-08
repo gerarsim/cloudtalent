@@ -33,9 +33,24 @@ def ensure_demo_account(db: Session) -> None:
     db.commit()
 
 
+DEMO_COMPANY_NAME = "Demo Bank Luxembourg"
+DEMO_COMPANY_EMAIL, DEMO_COMPANY_PASSWORD = "rh@demobank.example.com", "entreprise123"
+
+
+def ensure_demo_company_account(db: Session) -> None:
+    """Crée le compte entreprise partenaire de démo s'il manque (même logique que le consultant)."""
+    bank = db.scalar(select(Company).where(Company.name == DEMO_COMPANY_NAME).limit(1))
+    if bank is None or db.scalar(select(User.id).where(User.email == DEMO_COMPANY_EMAIL)):
+        return
+    db.add(User(email=DEMO_COMPANY_EMAIL, password_hash=hash_password(DEMO_COMPANY_PASSWORD),
+                role="company", company_id=bank.id))
+    db.commit()
+
+
 def seed(db: Session) -> None:
     if db.scalar(select(func.count(Consultant.id))):
         ensure_demo_account(db)
+        ensure_demo_company_account(db)
         return
 
     today = date.today()
@@ -62,8 +77,10 @@ def seed(db: Session) -> None:
         ),
     ])
 
-    bank = Company(name="Demo Bank Luxembourg", sector="Banking", city="Luxembourg",
-                   contact_name="IT Procurement", email="demo@example.com")
+    bank = Company(name=DEMO_COMPANY_NAME, sector="Banking", city="Luxembourg",
+                   contact_name="IT Procurement", email="demo@example.com", phone="+352 00 00 00",
+                   address="1 boulevard Royal, L-2449",
+                   description="Banque de démonstration, partenaire CloudTalent.")
     db.add(bank)
     db.flush()
 
@@ -86,5 +103,6 @@ def seed(db: Session) -> None:
                  level="Intermédiaire", duration_days=3, price=900),
     ])
     db.commit()
-    # Compte de démonstration : le consultant ne voit et ne modifie que sa fiche
+    # Comptes de démonstration : le consultant ne voit que sa fiche, l'entreprise ses missions
     ensure_demo_account(db)
+    ensure_demo_company_account(db)

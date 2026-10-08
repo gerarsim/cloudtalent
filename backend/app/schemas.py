@@ -133,12 +133,22 @@ class ConsultantOut(ORM):
 
 # --- Entreprises -----------------------------------------------------------
 
+LongText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
+
+
 class CompanyIn(BaseModel):
     name: Name
     sector: ShortText = ""
     city: ShortText = "Luxembourg"
     contact_name: ShortText = ""
     email: EmailStr | None = None
+    phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] = ""
+    # http(s) uniquement : le lien est cliquable dans l'interface (pas de javascript:)
+    website: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200,
+                                              pattern=r"^(https?://\S+)?$")] = ""
+    address: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] = ""
+    vat_number: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] = ""
+    description: LongText = ""
 
 
 class CompanyOut(ORM):
@@ -148,6 +158,11 @@ class CompanyOut(ORM):
     city: str
     contact_name: str
     email: str | None
+    phone: str
+    website: str
+    address: str
+    vat_number: str
+    description: str
 
 
 class CompanyRef(ORM):
@@ -168,6 +183,7 @@ class MissionIn(BaseModel):
     start_date: date | None = None
     tjm_max: Money = 0
     status: MissionStatus = "Ouverte"
+    description: LongText = ""
     skills: list[MissionSkillIn] = []
 
 
@@ -180,6 +196,7 @@ class MissionOut(ORM):
     start_date: date | None
     tjm_max: float
     status: str
+    description: str
     skills: list[MissionSkillOut]
 
 
@@ -226,7 +243,7 @@ class MatchOut(BaseModel):
 
 # --- Comptes & authentification -------------------------------------------
 
-Role = Literal["admin", "consultant"]
+Role = Literal["admin", "consultant", "company"]
 Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
 
 
@@ -240,6 +257,7 @@ class UserOut(ORM):
     email: str
     role: str
     consultant_id: int | None
+    company_id: int | None
     active: bool
 
 
@@ -250,11 +268,13 @@ class TokenOut(BaseModel):
 
 
 class UserIn(BaseModel):
-    """Création d'un compte par un admin. `consultant_id` obligatoire pour le rôle consultant."""
+    """Création d'un compte par un admin. `consultant_id` obligatoire pour le rôle consultant,
+    `company_id` pour le rôle company (entreprise partenaire)."""
     email: EmailStr
     password: Password
     role: Role
     consultant_id: int | None = None
+    company_id: int | None = None
     active: bool = True
 
 
@@ -264,6 +284,7 @@ class UserUpdate(BaseModel):
     password: Password | None = None
     role: Role
     consultant_id: int | None = None
+    company_id: int | None = None
     active: bool = True
 
 

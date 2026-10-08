@@ -8,6 +8,7 @@ import Header from "./components/Header.jsx";
 import Login from "./components/Login.jsx";
 import Matches from "./components/Matches.jsx";
 import MyAccount from "./components/MyAccount.jsx";
+import CompanySpace from "./components/CompanySpace.jsx";
 
 const TABS = [
   ["dashboard", "Dashboard"],
@@ -18,7 +19,7 @@ const TABS = [
   ["users", "Utilisateurs"],
 ];
 
-/** Choix de l'espace selon le rôle : admin = tout, consultant = sa fiche uniquement. */
+/** Choix de l'espace selon le rôle : admin = tout, consultant = sa fiche, entreprise = sa fiche et ses missions. */
 function Root() {
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(hasToken());
@@ -31,7 +32,9 @@ function Root() {
 
   if (checking) return <div className="app"><Header /><main><p className="muted">Chargement…</p></main></div>;
   if (!user) return <Login onLogin={setUser} />;
-  return user.role === "admin" ? <App user={user} onLogout={logout} /> : <MyAccount user={user} onLogout={logout} />;
+  if (user.role === "admin") return <App user={user} onLogout={logout} />;
+  if (user.role === "company") return <CompanySpace user={user} onLogout={logout} />;
+  return <MyAccount user={user} onLogout={logout} />;
 }
 
 function App({ user, onLogout }) {
@@ -169,10 +172,12 @@ function App({ user, onLogout }) {
                   columns={[
                     { key: "email", label: "Email", render: (x) => <b>{x.email}</b> },
                     { key: "role", label: "Rôle", render: (x) => ROLES[x.role] },
-                    { key: "consultant", label: "Fiche consultant", render: (x) => data.consultants.find((c) => c.id === x.consultant_id)?.name ?? "—" },
+                    { key: "link", label: "Rattaché à", render: (x) =>
+                      data.consultants.find((c) => c.id === x.consultant_id)?.name
+                      ?? data.companies.find((c) => c.id === x.company_id)?.name ?? "—" },
                     { key: "active", label: "Statut", render: (x) => x.active ? "Actif" : <span className="status s-inactive">Désactivé</span> },
                   ]} />
-                <p className="muted">Un administrateur a accès à tout. Un consultant ne voit et ne modifie que sa propre fiche.</p>
+                <p className="muted">Un administrateur a accès à tout. Un consultant ne voit et ne modifie que sa propre fiche. Une entreprise partenaire gère sa fiche et publie ses missions.</p>
               </Page>
             )}
           </>
@@ -183,7 +188,7 @@ function App({ user, onLogout }) {
       {modal?.kind === "company" && <CompanyForm item={modal.item} onClose={close} onSaved={saved} />}
       {modal?.kind === "mission" && <MissionForm item={modal.item} catalog={data.skills} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "training" && <TrainingForm item={modal.item} catalog={data.skills} onClose={close} onSaved={saved} />}
-      {modal?.kind === "user" && <UserForm item={modal.item} consultants={data.consultants} onClose={close} onSaved={saved} />}
+      {modal?.kind === "user" && <UserForm item={modal.item} consultants={data.consultants} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "matches" && <Matches mission={modal.item} onClose={close} />}
     </div>
   );

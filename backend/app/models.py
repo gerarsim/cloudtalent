@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     String,
+    Text,
     func,
 )
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
@@ -109,6 +110,11 @@ class Company(Base):
     city: Mapped[str] = mapped_column(String(100), default="Luxembourg", nullable=False)
     contact_name: Mapped[str] = mapped_column(String(150), default="", nullable=False)
     email: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    website: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    address: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    vat_number: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
 
 class Mission(Base):
@@ -128,6 +134,8 @@ class Mission(Base):
     start_date: Mapped[date | None] = mapped_column(Date)
     tjm_max: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="Ouverte", nullable=False)
+    # Descriptif du poste (contexte, responsabilités…), saisi par l'admin ou l'entreprise
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     company: Mapped[Company | None] = relationship(lazy="joined")
     skills: Mapped[list[MissionSkill]] = relationship(
@@ -135,16 +143,22 @@ class Mission(Base):
     )
 
 
+# Chaque rôle est rattaché à exactement ce qu'il doit l'être (rien pour un admin)
+USER_LINKS_CHECK = (
+    "(role = 'admin' AND consultant_id IS NULL AND company_id IS NULL)"
+    " OR (role = 'consultant' AND consultant_id IS NOT NULL AND company_id IS NULL)"
+    " OR (role = 'company' AND company_id IS NOT NULL AND consultant_id IS NULL)"
+)
+
+
 class User(Base):
-    """Compte de connexion. Un admin a tous les droits ; un consultant ne voit que sa fiche."""
+    """Compte de connexion. Un admin a tous les droits ; un consultant ne voit que sa fiche ;
+    une entreprise partenaire gère sa fiche et ses missions."""
 
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role IN ('admin', 'consultant')", name="ck_user_role"),
-        CheckConstraint(
-            "(role = 'admin' AND consultant_id IS NULL) OR (role = 'consultant' AND consultant_id IS NOT NULL)",
-            name="ck_user_consultant",
-        ),
+        CheckConstraint("role IN ('admin', 'consultant', 'company')", name="ck_user_role"),
+        CheckConstraint(USER_LINKS_CHECK, name="ck_user_links"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -155,6 +169,8 @@ class User(Base):
     consultant_id: Mapped[int | None] = mapped_column(
         ForeignKey("consultants.id", ondelete="CASCADE"), unique=True
     )
+    # Entreprise rattachée (uniquement pour le rôle company) ; plusieurs comptes possibles
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     consultant: Mapped[Consultant | None] = relationship(lazy="joined")
