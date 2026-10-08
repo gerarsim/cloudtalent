@@ -43,13 +43,16 @@ app.add_middleware(
 )
 
 # Droits : un admin a accès à tout ; un consultant uniquement à sa propre fiche
-# (contrôle fait dans le router consultants) et au référentiel de compétences.
+# (contrôle fait dans le router consultants) et au référentiel de compétences ;
+# une entreprise partenaire à sa fiche et à ses missions (contrôles dans les routers
+# companies et missions).
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(consultants.router, prefix="/api")
 app.include_router(skills.router, prefix="/api", dependencies=[Depends(current_user)])
-for r in (companies, missions, training):
-    app.include_router(r.router, prefix="/api", dependencies=[Depends(require_admin)])
+app.include_router(companies.router, prefix="/api")
+app.include_router(missions.router, prefix="/api")
+app.include_router(training.router, prefix="/api", dependencies=[Depends(require_admin)])
 
 
 @app.get("/api/health", tags=["Système"])

@@ -23,7 +23,7 @@ from .models import User
 
 log = logging.getLogger("cloudtalent")
 
-ROLES = ("admin", "consultant")
+ROLES = ("admin", "consultant", "company")
 TOKEN_TTL = int(os.getenv("TOKEN_TTL_SECONDS", str(12 * 3600)))
 
 _secret = os.getenv("SECRET_KEY")
@@ -103,6 +103,13 @@ def current_user(
             detail="Authentification requise",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return user
+
+
+def require_admin_or_company(user: User = Depends(current_user)) -> User:
+    """Admin, ou entreprise partenaire (limitée ensuite à ses propres données)."""
+    if user.role not in ("admin", "company"):
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs et entreprises partenaires")
     return user
 
 

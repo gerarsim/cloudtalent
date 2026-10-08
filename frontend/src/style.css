@@ -59,7 +59,7 @@ td.actions > *{margin-left:4px}
 .grid-form{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
 .field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#475569;font-weight:600}
 .field.wide{grid-column:1/-1}
-input,select{font:inherit;font-size:14px;padding:9px 10px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:#17202a;min-width:0}
+input,select,textarea{font:inherit;font-size:14px;padding:9px 10px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:#17202a;min-width:0}
 input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-color:#38bdf8}
 .check{display:flex;align-items:center;gap:6px;font-size:13px;color:#475569;font-weight:500;flex-direction:row}
 .check input{width:auto}
@@ -106,3 +106,6 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
 .pay-calc tr.total td{border-bottom:none;font-size:18px}
 .pay-calc b,.pay-inputs b{display:inline;font-size:inherit}
 .cv-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.company-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.company-info span{font-size:12px}
+.pre{white-space:pre-wrap;margin:0}
