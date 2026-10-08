@@ -14,8 +14,28 @@ def _cskills(db: Session, spec: dict[str, int]) -> list[ConsultantSkill]:
     return [ConsultantSkill(skill_id=get_or_create_skill(db, n).id, level=l) for n, l in spec.items()]
 
 
+DEMO_EMAIL, DEMO_PASSWORD = "ahmed.benali@example.com", "consultant123"
+
+
+def ensure_demo_account(db: Session) -> None:
+    """Crée le compte consultant de démo s'il manque.
+
+    Indépendant du seed : une base remplie avant l'arrivée des comptes (v0.2) a déjà
+    ses consultants, le seed ne repasse donc pas et le compte n'existerait jamais.
+    """
+    ahmed = db.scalar(select(Consultant).where(Consultant.email == DEMO_EMAIL))
+    if ahmed is None:
+        return
+    if db.scalar(select(User.id).where((User.email == DEMO_EMAIL) | (User.consultant_id == ahmed.id))):
+        return
+    db.add(User(email=DEMO_EMAIL, password_hash=hash_password(DEMO_PASSWORD),
+                role="consultant", consultant_id=ahmed.id))
+    db.commit()
+
+
 def seed(db: Session) -> None:
     if db.scalar(select(func.count(Consultant.id))):
+        ensure_demo_account(db)
         return
 
     today = date.today()
@@ -42,11 +62,6 @@ def seed(db: Session) -> None:
         ),
     ])
 
-    # Compte de démonstration : le consultant ne voit et ne modifie que sa fiche
-    db.flush()
-    db.add(User(email="ahmed.benali@example.com", password_hash=hash_password("consultant123"),
-                role="consultant", consultant_id=ahmed.id))
-
     bank = Company(name="Demo Bank Luxembourg", sector="Banking", city="Luxembourg",
                    contact_name="IT Procurement", email="demo@example.com")
     db.add(bank)
@@ -68,3 +83,5 @@ def seed(db: Session) -> None:
                  level="Intermédiaire", duration_days=3, price=900),
     ])
     db.commit()
+    # Compte de démonstration : le consultant ne voit et ne modifie que sa fiche
+    ensure_demo_account(db)
