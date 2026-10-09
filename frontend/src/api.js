@@ -79,6 +79,7 @@ export const TRAINING_LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
 export const orNull = (v) => (v === "" || v === undefined ? null : v);
 export const euro = (n) => (n ? `${Number(n).toLocaleString("fr-FR")} €` : "—");
 export const fileSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} Mo` : `${Math.ceil(n / 1024)} Ko`);
+export const TAX_CLASSES = { 1: "Classe 1 · célibataire", 2: "Classe 2 · marié / partenaire" };
 export const INVOICE_STATUSES = ["Déposée", "Paiement demandé", "Payée"];
 // "2026-09" -> "septembre 2026"
 export const frMonth = (p) => new Date(`${p}-01T00:00:00`).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });

@@ -8,6 +8,7 @@ import Header from "./components/Header.jsx";
 import Login from "./components/Login.jsx";
 import Matches from "./components/Matches.jsx";
 import ConsultantProfile from "./components/ConsultantProfile.jsx";
+import Payslips from "./components/Payroll.jsx";
 import MyAccount from "./components/MyAccount.jsx";
 import CompanySpace from "./components/CompanySpace.jsx";
 
@@ -117,6 +118,7 @@ function App({ user, onLogout }) {
                   actions={(r) => (
                     <>
                       <button className="primary small" onClick={open("profile", r)}>Profil</button>
+                      <button className="small" onClick={open("payslips", r)}>Fiches de paie</button>
                       {rowActions("consultant", "/consultants/", "name")(r)}
                     </>
                   )}
@@ -259,6 +261,7 @@ function App({ user, onLogout }) {
       {modal?.kind === "user" && <UserForm item={modal.item} consultants={data.consultants} companies={data.companies} onClose={close} onSaved={saved} />}
       {modal?.kind === "matches" && <Matches mission={modal.item} onClose={close} />}
       {modal?.kind === "profile" && <ConsultantProfile consultant={modal.item} onClose={close} />}
+      {modal?.kind === "payslips" && <Payslips consultant={modal.item} onClose={close} />}
     </div>
   );
 }

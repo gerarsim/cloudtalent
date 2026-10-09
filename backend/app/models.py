@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     LargeBinary,
     String,
     Text,
@@ -69,6 +70,7 @@ class Consultant(Base):
         CheckConstraint("reserve_pct BETWEEN 0 AND 100", name="ck_consultant_reserve_pct"),
         CheckConstraint("days_per_month BETWEEN 0 AND 31", name="ck_consultant_days_per_month"),
         CheckConstraint("billing_tjm IS NULL OR billing_tjm >= 0", name="ck_consultant_billing_tjm"),
+        CheckConstraint("tax_class IN ('1', '2')", name="ck_consultant_tax_class"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -87,6 +89,8 @@ class Consultant(Base):
     mission_id: Mapped[int | None] = mapped_column(ForeignKey("missions.id", ondelete="SET NULL"), index=True)
     # TJM facturé au client pour ce consultant (admin uniquement) ; vide = TJM max de la mission
     billing_tjm: Mapped[float | None] = mapped_column(Float)
+    # Classe d'impôt luxembourgeoise (1 = célibataire, 2 = marié / partenaire) pour la simulation de paie
+    tax_class: Mapped[str] = mapped_column(String(2), default="1", server_default="1", nullable=False)
 
     skills: Mapped[list[ConsultantSkill]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", order_by="ConsultantSkill.level.desc()"
@@ -305,6 +309,35 @@ class Invoice(Base):
         return None if self.amount is None else round(self.amount - self.consultant_amount, 2)
 
 
+class Payslip(Base):
+    """Fiche de paie mensuelle d'un consultant, établie par l'admin.
+
+    Le calcul (brut → net luxembourgeois, voir app/payroll.py) est figé à la création ; l'admin
+    peut joindre la fiche officielle de la fiduciaire."""
+    __tablename__ = "payslips"
+    __table_args__ = (
+        UniqueConstraint("consultant_id", "period", name="uq_payslip_consultant_period"),
+        CheckConstraint("gross >= 0", name="ck_payslip_gross"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consultant_id: Mapped[int] = mapped_column(
+        ForeignKey("consultants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    period: Mapped[str] = mapped_column(String(7), nullable=False)  # "AAAA-MM"
+    tax_class: Mapped[str] = mapped_column(String(2), nullable=False)
+    gross: Mapped[float] = mapped_column(Float, nullable=False)
+    net: Mapped[float] = mapped_column(Float, nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, nullable=False)
+    filename: Mapped[str | None] = mapped_column(String(200))
+    content_type: Mapped[str | None] = mapped_column(String(100))
+    size: Mapped[int | None] = mapped_column(Integer)
+    data: Mapped[bytes | None] = deferred(mapped_column(LargeBinary))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    consultant: Mapped[Consultant] = relationship(lazy="joined")
+
+
 __all__ = [
     "Skill",
     "ConsultantSkill",
@@ -317,4 +350,5 @@ __all__ = [
     "Proposal",
     "Enrollment",
     "Invoice",
+    "Payslip",
 ]

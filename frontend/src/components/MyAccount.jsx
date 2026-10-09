@@ -3,6 +3,7 @@ import { api, download, euro, fileSize, frDate, frMonth, upload } from "../api.j
 import { Alert, InvoiceStatus, SkillChips } from "./ui.jsx";
 import { ConsultantForm, salary } from "./forms.jsx";
 import Header from "./Header.jsx";
+import { PAYROLL_NOTE, PayrollTable, PayslipList } from "./Payroll.jsx";
 
 /** Espace consultant : uniquement son profil. Il règle sa réserve, ses jours facturés et son CV ;
  *  nom, TJM, statut et mission sont gérés par l'admin. */
@@ -67,6 +68,7 @@ export default function MyAccount({ user, onLogout }) {
             <Offers offers={offers} />
             <Pay me={me} onSaved={(p) => { setMe(p); load(); }} onError={setError} />
             <Cv me={me} onSaved={setMe} onError={setError} />
+            <Payslips onError={setError} />
             <Invoices me={me} onError={setError} />
 
             <div className="card profile">
@@ -125,9 +127,10 @@ function Pay({ me, onSaved, onError }) {
         <tbody>
           <tr><td>TJM × jours</td><td>{euro(me.tjm)} × {Number(days) || 0} j</td><td><b>{euro(pay.revenue)}</b></td></tr>
           <tr><td>Réserve</td><td>{Number(pct) || 0} % du chiffre d'affaires</td><td>− {euro(pay.reserve)}</td></tr>
-          <tr className="total"><td>Salaire mensuel</td><td className="muted">avant charges sociales</td><td><b>{euro(pay.salary)}</b></td></tr>
+          <tr className="total"><td>Salaire brut mensuel</td><td className="muted">avant cotisations et impôt</td><td><b>{euro(pay.salary)}</b></td></tr>
         </tbody>
       </table>
+      <NetEstimate p={me.payroll} stale={dirty} />
       {dirty && (
         <div className="form-actions">
           <button type="button" onClick={() => { setPct(me.reserve_pct); setDays(me.days_per_month); }}>Annuler</button>
@@ -173,6 +176,32 @@ function Cv({ me, onSaved, onError }) {
         </button>
         <small className="muted"> PDF, DOC, DOCX ou ODT · 5 Mo max.</small>
       </div>
+    </div>
+  );
+}
+
+/** Salaire mensuel pris comme brut, converti en net selon les règles luxembourgeoises. */
+function NetEstimate({ p, stale }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="net-estimate">
+      <div className="net-line">
+        <span>Net estimé au Luxembourg <small className="muted">(classe {p.tax_class})</small></span>
+        <b>{stale ? "enregistrez pour recalculer" : `${euro(p.net)} / mois`}</b>
+        <button type="button" className="link" onClick={() => setOpen(!open)}>{open ? "Masquer le détail" : "Voir le calcul"}</button>
+      </div>
+      {open && !stale && <><PayrollTable p={p} /><small className="muted">{PAYROLL_NOTE}</small></>}
+    </div>
+  );
+}
+
+function Payslips({ onError }) {
+  const [rows, setRows] = useState([]);
+  useEffect(() => { api("/payslips/").then(setRows).catch((e) => onError(e.message)); }, [onError]);
+  return (
+    <div className="card profile">
+      <h2>Mes fiches de paie</h2>
+      <PayslipList rows={rows} onError={onError} />
     </div>
   );
 }

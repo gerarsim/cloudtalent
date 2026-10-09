@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import current_user, ensure_admin
 from .database import SessionLocal
-from .routers import auth, companies, consultants, enrollments, invoices, missions, proposals, skills, training, users
+from .routers import (auth, companies, consultants, enrollments, invoices, missions, payslips, proposals, skills,
+                      training, users)
 from .seed import seed
 
 log = logging.getLogger("cloudtalent")
@@ -56,6 +57,7 @@ app.include_router(training.router, prefix="/api")
 app.include_router(proposals.router, prefix="/api")
 app.include_router(enrollments.router, prefix="/api")
 app.include_router(invoices.router, prefix="/api")
+app.include_router(payslips.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["Système"])

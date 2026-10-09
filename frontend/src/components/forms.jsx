@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { api, euro, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, ROLES, TRAINING_LEVELS } from "../api.js";
+import { api, euro, orNull, CONSULTANT_STATUSES, MISSION_STATUSES, ROLES, TAX_CLASSES, TRAINING_LEVELS } from "../api.js";
 import { Alert, Field, Modal } from "./ui.jsx";
 import SkillsEditor, { cleanSkills, toEditor } from "./SkillsEditor.jsx";
 
@@ -51,7 +51,7 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
   const f = useForm(
     {
       name: item?.name ?? "", title: item?.title ?? "", email: item?.email ?? "",
-      experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "", billing_tjm: item?.billing_tjm ?? "",
+      experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "", billing_tjm: item?.billing_tjm ?? "", tax_class: item?.tax_class ?? "1",
       reserve_pct: item?.reserve_pct ?? 0, days_per_month: item?.days_per_month ?? 20,
       mission_id: item?.mission?.id ?? "",
       available_from: item?.available_from ?? "", status: item?.status ?? "Freelance",
@@ -68,6 +68,7 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
         return self ? common : {
           ...common, name: v.name, email: orNull(v.email.trim()), tjm: num(v.tjm), status: v.status,
           mission_id: intOrNull(v.mission_id), billing_tjm: v.billing_tjm === "" ? null : num(v.billing_tjm),
+          tax_class: v.tax_class,
         };
       },
     }
@@ -110,6 +111,11 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
           <Field label="Jours facturés / mois">
             <input type="number" min="0" max="31" value={v.days_per_month} onChange={set("days_per_month")} />
             <small className="muted">CA {euro(pay.revenue)} · réserve {euro(pay.reserve)} · salaire {euro(pay.salary)}</small>
+          </Field>
+          <Field label="Classe d'impôt (Luxembourg)">
+            <select value={v.tax_class} onChange={set("tax_class")}>
+              {Object.entries(TAX_CLASSES).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
           </Field>
         </>}
         <Field label="Disponible à partir du"><input type="date" value={v.available_from} onChange={set("available_from")} /></Field>

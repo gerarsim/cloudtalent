@@ -96,6 +96,18 @@ liste de `{consultant, score, skill_score, eligible, tjm_ok, available, matched,
 - Le consultant ne voit jamais le TJM client ni la marge ; l'entreprise ne voit jamais le TJM consultant ni la marge.
 - « Demander le paiement » rend la facture visible dans l'espace de l'entreprise (aucun email n'est envoyé).
 
+## Fiches de paie (Luxembourg)
+
+L'admin établit chaque mois la fiche de paie d'un consultant (bouton « Fiches de paie » dans la liste) :
+brut proposé = salaire mensuel du consultant, classe d'impôt 1 ou 2, fiche officielle de la fiduciaire
+en pièce jointe facultative. Le consultant voit son **net estimé** dans « Mon salaire » et télécharge
+ses fiches (PDF généré + fiche officielle) dans « Mes fiches de paie ».
+
+Le calcul (`app/payroll.py`) est une **simulation indicative** : pension 8,5 %, maladie 3,05 %
+(plafonnées à 5 × SSM), dépendance 1,4 %, barème d'impôt 2025 avec splitting en classe 2, fonds
+pour l'emploi, crédit d'impôt salarié simplifié, et charges patronales pour information. Le SSM se
+règle avec `LU_SSM_MONTHLY`. À faire valider par la fiduciaire avant tout usage réel.
+
 ## Ce MVP contient
 
 - Consultants, entreprises, missions, formations : CRUD complet avec validation
