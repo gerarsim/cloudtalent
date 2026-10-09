@@ -24,7 +24,7 @@ button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid #cbd5e1;ba
 button:disabled{opacity:.6;cursor:wait}
 .primary{background:#0284c7;color:white;border-color:#0284c7;padding:11px 16px}
 .primary:hover{background:#0369a1}
-.primary.small{padding:6px 10px;font-size:13px}
+.primary.small,button.small{padding:6px 10px;font-size:13px}
 button.link{border:0;background:none;color:#0284c7;padding:4px 6px;font-size:13px}
 button.link.danger{color:#dc2626}
 button.icon{border:0;background:none;font-size:22px;line-height:1;padding:2px 8px;color:#64748b}
@@ -150,3 +150,8 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
 .invoice-form .field{min-width:150px}
 .num{text-align:right;white-space:nowrap}
 .margin{color:#166534;font-weight:700}
+/* Paie */
+.net-estimate{border-top:1px solid #e2e8f0;padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.net-line{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between}
+.net-line b{font-size:18px}
+.payroll td:nth-child(2){font-size:12px}

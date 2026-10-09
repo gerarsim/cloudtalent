@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, computed_field
 
+from . import payroll
+
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=150)]
 Level = Annotated[int, Field(ge=1, le=5, description="1 = notions, 3 = autonome, 5 = expert")]
@@ -53,6 +55,9 @@ class MissionSkillOut(ORM):
 DaysPerMonth = Annotated[int, Field(ge=0, le=31, description="Jours facturés par mois")]
 
 
+TaxClass = Literal["1", "2"]  # classe d'impôt luxembourgeoise
+
+
 class ConsultantSelfIn(BaseModel):
     """Ce qu'un consultant peut modifier sur sa propre fiche. Nom, email, TJM, statut et
     mission sont gérés par un admin."""
@@ -71,6 +76,7 @@ class ConsultantIn(ConsultantSelfIn):
     status: ConsultantStatus = "Freelance"
     mission_id: int | None = None
     billing_tjm: Money | None = Field(None, description="TJM facturé au client ; vide = TJM max de la mission")
+    tax_class: TaxClass = "1"
 
 
 class CvOut(ORM):
@@ -98,6 +104,28 @@ class SalaryOut(BaseModel):
     salary: float = Field(description="Chiffre d'affaires − réserve, avant charges sociales")
 
 
+class PayrollLine(BaseModel):
+    label: str
+    base: float
+    rate: float
+    amount: float
+
+
+class PayrollOut(BaseModel):
+    """Simulation brut → net luxembourgeoise (voir app/payroll.py)."""
+    gross: float
+    tax_class: str
+    lines: list[PayrollLine] = Field(description="Cotisations sociales salariales")
+    social: float
+    taxable_month: float
+    tax: float = Field(description="Impôt sur le revenu + fonds pour l'emploi")
+    tax_credit: float = Field(description="Crédit d'impôt salarié")
+    net: float
+    employer_lines: list[PayrollLine]
+    employer_total: float
+    employer_cost: float
+
+
 def monthly_salary(tjm: float, reserve_pct: float, days: int) -> SalaryOut:
     """TJM × jours − réserve (% du chiffre d'affaires), avant charges sociales."""
     revenue = round(tjm * days, 2)
@@ -114,6 +142,7 @@ class ConsultantOut(ORM):
     tjm: float
     reserve_pct: float
     days_per_month: int
+    tax_class: str
     available_from: date | None
     status: str
     skills: list[ConsultantSkillOut]
@@ -134,6 +163,11 @@ class ConsultantOut(ORM):
     @property
     def monthly(self) -> SalaryOut:
         return monthly_salary(self.tjm, self.reserve_pct, self.days_per_month)
+
+    @computed_field(description="Simulation brut → net au Luxembourg, le salaire mensuel pris comme brut")
+    @property
+    def payroll(self) -> PayrollOut:
+        return PayrollOut(**payroll.compute(self.monthly.salary, self.tax_class))
 
 
 class MarginOut(BaseModel):
@@ -461,3 +495,18 @@ class InvoiceOut(ORM):
     billing_tjm: float | None
     amount: float | None
     margin: float | None
+
+
+# --- Fiches de paie ----------------------------------------------------------
+
+class PayslipOut(ORM):
+    id: int
+    consultant: ConsultantRef
+    period: str
+    tax_class: str
+    gross: float
+    net: float
+    details: PayrollOut
+    filename: str | None
+    size: int | None
+    created_at: datetime
