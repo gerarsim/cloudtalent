@@ -156,6 +156,8 @@ function App({ user, onLogout }) {
                     { key: "start", label: "Démarrage", render: (x) => frDate(x.start_date) },
                     { key: "dur", label: "Durée", render: (x) => (x.duration_months ? `${x.duration_months} mois` : "—") },
                     { key: "tjm", label: "TJM max", render: (x) => euro(x.tjm_max) },
+                    { key: "ctjm", label: "TJM consultant", render: (x) => x.offered_tjm == null ? "—"
+                      : <>{euro(x.offered_tjm)}{x.consultant_tjm == null && <div className="muted">auto</div>}</> },
                     { key: "status", label: "Statut", render: (x) => <span className={`status s-${x.status}`}>{x.status}</span> },
                   ]} />
               </Page>

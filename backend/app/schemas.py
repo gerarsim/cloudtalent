@@ -97,6 +97,13 @@ class SalaryOut(BaseModel):
     salary: float = Field(description="Chiffre d'affaires − réserve, avant charges sociales")
 
 
+def monthly_salary(tjm: float, reserve_pct: float, days: int) -> SalaryOut:
+    """TJM × jours − réserve (% du chiffre d'affaires), avant charges sociales."""
+    revenue = round(tjm * days, 2)
+    reserve = round(revenue * reserve_pct / 100, 2)
+    return SalaryOut(days_per_month=days, revenue=revenue, reserve=reserve, salary=round(revenue - reserve, 2))
+
+
 class ConsultantOut(ORM):
     id: int
     name: str
@@ -125,10 +132,7 @@ class ConsultantOut(ORM):
     @computed_field(description="Calcul du salaire mensuel")
     @property
     def monthly(self) -> SalaryOut:
-        revenue = round(self.tjm * self.days_per_month, 2)
-        reserve = round(revenue * self.reserve_pct / 100, 2)
-        return SalaryOut(days_per_month=self.days_per_month, revenue=revenue, reserve=reserve,
-                         salary=round(revenue - reserve, 2))
+        return monthly_salary(self.tjm, self.reserve_pct, self.days_per_month)
 
 
 # --- Entreprises -----------------------------------------------------------
@@ -184,6 +188,7 @@ class MissionIn(BaseModel):
     tjm_max: Money = 0
     status: MissionStatus = "Ouverte"
     description: LongText = ""
+    consultant_tjm: Money | None = Field(None, description="TJM proposé au consultant (admin) ; vide = TJM max − marge")
     skills: list[MissionSkillIn] = []
 
 
@@ -197,6 +202,9 @@ class MissionOut(ORM):
     tjm_max: float
     status: str
     description: str
+    # Réservés à l'admin : toujours null dans les réponses faites à une entreprise
+    consultant_tjm: float | None = None
+    offered_tjm: float | None = Field(None, description="TJM proposé au consultant (fixé ou calculé)")
     skills: list[MissionSkillOut]
 
 
@@ -290,6 +298,32 @@ class EnrollmentOut(ORM):
     created_at: datetime
 
 
+# --- Offres pour le consultant ----------------------------------------------
+
+class OfferMissionOut(ORM):
+    """Mission vue par un consultant : sans le nom de l'entreprise ni son TJM max."""
+    id: int
+    title: str
+    location: str
+    start_date: date | None
+    duration_months: int | None
+    description: str
+    skills: list[MissionSkillOut]
+
+
+class OfferOut(BaseModel):
+    mission: OfferMissionOut
+    sector: str = Field(description="Secteur de l'entreprise cliente")
+    tjm: float | None = Field(description="TJM proposé par CloudTalent")
+    monthly: SalaryOut | None = Field(description="Salaire mensuel estimé avec ce TJM, sa réserve et ses jours")
+    score: int
+    skill_score: int
+    available: bool
+    matched: list["SkillMatch"]
+    missing: list["SkillMatch"]
+    proposal_status: str | None = Field(description="Statut si CloudTalent l'a déjà proposé à l'entreprise")
+
+
 # --- Matching --------------------------------------------------------------
 
 class SkillMatch(BaseModel):
@@ -360,3 +394,6 @@ class UserUpdate(BaseModel):
 class PasswordChange(BaseModel):
     current_password: Annotated[str, StringConstraints(max_length=128)]
     new_password: Password
+
+
+OfferOut.model_rebuild()  # SkillMatch est déclaré après

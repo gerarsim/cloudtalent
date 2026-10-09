@@ -118,6 +118,7 @@ export function MissionForm({ item, catalog, companies = [], own, onClose, onSav
       title: item?.title ?? "", company_id: item?.company?.id ?? "", location: item?.location ?? "Luxembourg",
       duration_months: item?.duration_months ?? "", start_date: item?.start_date ?? "",
       tjm_max: item?.tjm_max ?? "", status: item?.status ?? "Ouverte", description: item?.description ?? "",
+      consultant_tjm: item?.consultant_tjm ?? "",
       skills: item ? toEditor(item.skills, "mission") : [{ name: "", min_level: 3, required: true }],
     },
     {
@@ -125,6 +126,7 @@ export function MissionForm({ item, catalog, companies = [], own, onClose, onSav
       toBody: (v) => ({
         ...v, company_id: intOrNull(v.company_id), duration_months: intOrNull(v.duration_months),
         start_date: orNull(v.start_date), tjm_max: num(v.tjm_max), skills: cleanSkills(v.skills),
+        consultant_tjm: v.consultant_tjm === "" ? null : num(v.consultant_tjm),
       }),
     }
   );
@@ -145,6 +147,13 @@ export function MissionForm({ item, catalog, companies = [], own, onClose, onSav
         <Field label="Démarrage"><input type="date" value={v.start_date} onChange={set("start_date")} /></Field>
         <Field label="Durée (mois)"><input type="number" min="1" max="60" value={v.duration_months} onChange={set("duration_months")} /></Field>
         <Field label="TJM max (€)"><input type="number" min="0" step="10" value={v.tjm_max} onChange={set("tjm_max")} /></Field>
+        {!own && (
+          <Field label="TJM proposé au consultant (€)">
+            <input type="number" min="0" step="10" value={v.consultant_tjm} onChange={set("consultant_tjm")}
+                   placeholder={item?.offered_tjm && item.consultant_tjm == null ? `auto : ${item.offered_tjm}` : "auto : TJM max − marge"} />
+            <small className="muted">Visible par les consultants éligibles, jamais par l'entreprise.</small>
+          </Field>
+        )}
         <Field label="Statut">
           <select value={v.status} onChange={set("status")}>{MISSION_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
         </Field>

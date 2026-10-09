@@ -1,3 +1,4 @@
+import os
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -17,6 +18,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from .database import Base
+
+# Marge par défaut entre le TJM max payé par l'entreprise et le TJM proposé au consultant
+CONSULTANT_MARGIN_PCT = float(os.getenv("CONSULTANT_MARGIN_PCT", "15"))
 
 
 class Skill(Base):
@@ -123,6 +127,7 @@ class Mission(Base):
     __table_args__ = (
         CheckConstraint("tjm_max >= 0", name="ck_mission_tjm"),
         CheckConstraint("duration_months IS NULL OR duration_months > 0", name="ck_mission_duration"),
+        CheckConstraint("consultant_tjm IS NULL OR consultant_tjm >= 0", name="ck_mission_consultant_tjm"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -137,11 +142,22 @@ class Mission(Base):
     status: Mapped[str] = mapped_column(String(30), default="Ouverte", nullable=False)
     # Descriptif du poste (contexte, responsabilités…), saisi par l'admin ou l'entreprise
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # TJM proposé au consultant, fixé par l'admin ; jamais montré à l'entreprise
+    consultant_tjm: Mapped[float | None] = mapped_column(Float)
 
     company: Mapped[Company | None] = relationship(lazy="joined")
     skills: Mapped[list[MissionSkill]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", order_by="MissionSkill.required.desc()"
     )
+
+    @property
+    def offered_tjm(self) -> float | None:
+        """TJM proposé au consultant : celui fixé par l'admin, sinon TJM max − marge par défaut."""
+        if self.consultant_tjm is not None:
+            return self.consultant_tjm
+        if self.tjm_max:
+            return float(round(self.tjm_max * (1 - CONSULTANT_MARGIN_PCT / 100)))
+        return None
 
 
 # Chaque rôle est rattaché à exactement ce qu'il doit l'être (rien pour un admin)

@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session, undefer
 
 from ..auth import current_user, require_admin
 from ..database import get_db
-from ..models import Consultant, ConsultantCV, ConsultantSkill, Mission, User
-from ..schemas import ConsultantIn, ConsultantOut, ConsultantSelfIn, SkillLevelIn
+from ..matching import score_consultant
+from ..models import Consultant, ConsultantCV, ConsultantSkill, Mission, Proposal, User
+from ..schemas import ConsultantIn, ConsultantOut, ConsultantSelfIn, OfferOut, SkillLevelIn, monthly_salary
 from ..skills import get_or_create_skill
 from .common import get_or_404
 
@@ -88,6 +89,31 @@ def get_my_profile(user: User = Depends(current_user), db: Session = Depends(get
 def update_my_profile(data: ConsultantSelfIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Le consultant ne modifie que réserve, jours facturés, profil, compétences et disponibilité."""
     return _apply(db, get_or_404(db, Consultant, _own_id(user), "Consultant"), data)
+
+
+@router.get("/me/offers", response_model=list[OfferOut])
+def my_offers(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Missions ouvertes pour lesquelles le consultant est éligible (toutes les compétences
+    obligatoires), classées par score de matching, avec le TJM proposé par CloudTalent."""
+    me = get_or_404(db, Consultant, _own_id(user), "Consultant")
+    missions = db.scalars(select(Mission).where(Mission.status == "Ouverte")).unique().all()
+    proposed = dict(db.execute(select(Proposal.mission_id, Proposal.status)
+                               .where(Proposal.consultant_id == me.id)).all())
+    offers = []
+    for mission in missions:
+        if mission.id == me.mission_id:
+            continue
+        m = score_consultant(mission, me)
+        if m is None or not m.eligible:
+            continue
+        tjm = mission.offered_tjm
+        monthly = None if tjm is None else monthly_salary(tjm, me.reserve_pct, me.days_per_month)
+        offers.append(OfferOut(
+            mission=mission, sector=mission.company.sector if mission.company else "", tjm=tjm, monthly=monthly,
+            score=m.score, skill_score=m.skill_score, available=m.available, matched=m.matched, missing=m.missing,
+            proposal_status=proposed.get(mission.id),
+        ))
+    return sorted(offers, key=lambda o: o.score, reverse=True)
 
 
 @router.put("/me/cv", response_model=ConsultantOut)
