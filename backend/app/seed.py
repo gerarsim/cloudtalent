@@ -96,6 +96,14 @@ def seed(db: Session) -> None:
     db.flush()
     ahmed.mission_id = mission.id  # mission en cours visible dans l'espace consultant
     db.add(Proposal(mission_id=mission.id, consultant_id=marc.id))  # profil proposé à Demo Bank
+    # Deuxième mission ouverte : apparaît dans les offres d'Ahmed (et de Marc) avec un TJM fixé
+    db.add(Mission(
+        title="Cloud Engineer AWS / Terraform", company_id=bank.id, location="Luxembourg (hybride)",
+        duration_months=12, start_date=today + timedelta(days=30), tjm_max=780, consultant_tjm=680,
+        description="Industrialisation de la landing zone AWS et des pipelines GitLab CI.",
+        skills=[MissionSkill(skill_id=get_or_create_skill(db, n).id, required=r, min_level=l)
+                for n, (r, l) in {"AWS": (True, 4), "Terraform": (True, 3), "GitLab CI/CD": (False, 3)}.items()],
+    ))
 
     db.add_all([
         Training(title="AWS & Kubernetes pour DevOps", skill_id=get_or_create_skill(db, "Kubernetes").id,

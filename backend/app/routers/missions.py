@@ -22,6 +22,19 @@ def _get(db: Session, mission_id: int, user: User) -> Mission:
     return obj
 
 
+def _admin_only(user: User) -> set[str]:
+    """Champs ignorés à l'écriture : company_id est traité à part, le TJM consultant est réservé à l'admin."""
+    return {"skills", "company_id"} | ({"consultant_tjm"} if user.role == "company" else set())
+
+
+def _out(obj: Mission, user: User) -> MissionOut:
+    """Le TJM proposé au consultant n'est jamais montré à l'entreprise."""
+    out = MissionOut.model_validate(obj)
+    if user.role == "company":
+        out.consultant_tjm = out.offered_tjm = None
+    return out
+
+
 def _company_id(db: Session, data: MissionIn, user: User) -> int | None:
     """Une entreprise publie toujours pour elle-même, quel que soit le company_id envoyé."""
     if user.role == "company":
@@ -56,22 +69,22 @@ def list_missions(status: str | None = None, db: Session = Depends(get_db),
         q = q.where(Mission.company_id == user.company_id)
     if status:
         q = q.where(Mission.status == status)
-    return db.scalars(q).unique().all()
+    return [_out(m, user) for m in db.scalars(q).unique().all()]
 
 
 @router.get("/{mission_id}", response_model=MissionOut)
 def get_mission(mission_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin_or_company)):
-    return _get(db, mission_id, user)
+    return _out(_get(db, mission_id, user), user)
 
 
 @router.post("/", response_model=MissionOut, status_code=201)
 def create_mission(data: MissionIn, db: Session = Depends(get_db), user: User = Depends(require_admin_or_company)):
-    obj = Mission(**data.model_dump(exclude={"skills", "company_id"}), company_id=_company_id(db, data, user))
+    obj = Mission(**data.model_dump(exclude=_admin_only(user)), company_id=_company_id(db, data, user))
     db.add(obj)
     _set_skills(db, obj, data.skills)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _out(obj, user)
 
 
 @router.put("/{mission_id}", response_model=MissionOut)
@@ -79,14 +92,14 @@ def update_mission(mission_id: int, data: MissionIn, db: Session = Depends(get_d
                    user: User = Depends(require_admin_or_company)):
     obj = _get(db, mission_id, user)
     obj.company_id = _company_id(db, data, user)
-    for k, v in data.model_dump(exclude={"skills", "company_id"}).items():
+    for k, v in data.model_dump(exclude=_admin_only(user)).items():
         setattr(obj, k, v)
     obj.skills.clear()
     db.flush()
     _set_skills(db, obj, data.skills)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _out(obj, user)
 
 
 @router.delete("/{mission_id}", status_code=204)

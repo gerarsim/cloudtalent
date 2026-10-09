@@ -122,7 +122,7 @@ def test_seed_idempotent():
         seed(db)
         seed(db)
         assert db.query(Consultant).count() == 3
-        assert db.query(Mission).count() == 1
+        assert db.query(Mission).count() == 2
     finally:
         db.close()
 

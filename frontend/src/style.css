@@ -135,3 +135,10 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
 .status.s-Refusé,.status.s-Annulée{background:#fee2e2;color:#991b1b}
 .status.s-Demandée{background:#fef3c7;color:#92400e}
 .grid-form .wide{grid-column:1/-1;margin:0}
+.offer{display:flex;gap:18px;justify-content:space-between;border:1px solid #e2e8f0;border-radius:10px;padding:16px}
+.offer-main{display:flex;flex-direction:column;gap:8px;min-width:0}
+.card .offer-title{font-size:17px}
+.offer-pay{display:flex;flex-direction:column;align-items:flex-end;text-align:right;white-space:nowrap}
+.card .offer-pay b{font-size:24px}
+.count{display:inline-block;background:#0ea5e9;color:white;border-radius:999px;font-size:12px;padding:1px 8px;vertical-align:middle}
+@media (max-width:640px){.offer{flex-direction:column}.offer-pay{align-items:flex-start;text-align:left}}

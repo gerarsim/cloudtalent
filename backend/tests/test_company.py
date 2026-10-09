@@ -111,7 +111,8 @@ def test_seed_cree_compte_entreprise_demo():
     with TestClient(app) as anon:
         with login(anon, DEMO_COMPANY_EMAIL, DEMO_COMPANY_PASSWORD) as c:
             assert c.get("/api/companies/me").json()["name"] == "Demo Bank Luxembourg"
-            assert [m["title"] for m in c.get("/api/missions/").json()] == ["Senior DevOps Engineer"]
+            assert [m["title"] for m in c.get("/api/missions/").json()] == ["Cloud Engineer AWS / Terraform",
+                                                                     "Senior DevOps Engineer"]
 
 
 def test_propositions_de_consultants(client):

@@ -9,14 +9,16 @@ import Header from "./Header.jsx";
 export default function MyAccount({ user, onLogout }) {
   const [me, setMe] = useState(null);
   const [catalog, setCatalog] = useState([]);
+  const [offers, setOffers] = useState([]);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [profile, skills] = await Promise.all([api("/consultants/me"), api("/skills/")]);
+      const [profile, skills, o] = await Promise.all([api("/consultants/me"), api("/skills/"), api("/consultants/me/offers")]);
       setMe(profile);
       setCatalog(skills);
+      setOffers(o);
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -62,7 +64,8 @@ export default function MyAccount({ user, onLogout }) {
               ) : <p className="muted">Aucune mission en cours.</p>}
             </div>
 
-            <Pay me={me} onSaved={setMe} onError={setError} />
+            <Offers offers={offers} />
+            <Pay me={me} onSaved={(p) => { setMe(p); load(); }} onError={setError} />
             <Cv me={me} onSaved={setMe} onError={setError} />
 
             <div className="card profile">
@@ -169,6 +172,45 @@ function Cv({ me, onSaved, onError }) {
         </button>
         <small className="muted"> PDF, DOC, DOCX ou ODT · 5 Mo max.</small>
       </div>
+    </div>
+  );
+}
+
+/** Missions ouvertes qui correspondent au profil (matching), avec le TJM proposé par CloudTalent. */
+function Offers({ offers }) {
+  return (
+    <div className="card profile">
+      <h2>Offres pour moi {offers.length > 0 && <span className="count">{offers.length}</span>}</h2>
+      {offers.length === 0 ? (
+        <p className="muted">Aucune mission ouverte ne correspond à votre profil pour le moment. Complétez vos compétences pour en recevoir.</p>
+      ) : offers.map((o) => (
+        <div key={o.mission.id} className="offer">
+          <div className="offer-main">
+            <b className="offer-title">{o.mission.title}</b>
+            <div className="muted">
+              {[o.sector, o.mission.location, o.mission.start_date && `début le ${frDate(o.mission.start_date)}`,
+                o.mission.duration_months && `${o.mission.duration_months} mois`].filter(Boolean).join(" · ")}
+            </div>
+            {o.mission.description && <p className="pre">{o.mission.description}</p>}
+            <div className="chips">
+              {o.matched.map((s) => <span key={s.name} className={s.level >= s.min_level ? "chip ok" : "chip under"}>{s.name}<small>{s.level}/{s.min_level}</small></span>)}
+              {o.missing.map((s) => <span key={s.name} className="chip miss optional">{s.name}</span>)}
+            </div>
+            <div className="badges">
+              <span className="badge ok">Correspondance {o.score} %</span>
+              {!o.available && <span className="badge warn">Démarre avant votre disponibilité</span>}
+              {o.proposal_status && <span className={`status s-${o.proposal_status}`}>
+                {o.proposal_status === "Proposé" ? "Votre profil a été proposé" : o.proposal_status === "Retenu" ? "Vous êtes retenu" : "Non retenu"}
+              </span>}
+            </div>
+          </div>
+          <div className="offer-pay">
+            <span className="muted">TJM proposé</span>
+            <b>{o.tjm == null ? "À définir" : euro(o.tjm)}</b>
+            {o.monthly && <small className="muted">≈ {euro(o.monthly.salary)} / mois<br />{o.monthly.days_per_month} j, après réserve</small>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -163,3 +163,44 @@ def test_cv(client):
     assert client.get(f"/api/consultants/{mine['id']}").json()["cv"]["filename"] == "v2.docx"
     assert client.delete(f"/api/consultants/{mine['id']}/cv").status_code == 204
     assert client.get(f"/api/consultants/{mine['id']}").json()["cv"] is None
+
+
+def test_offres_du_consultant(client):
+    from tests.test_api import make_mission
+
+    me = make_consultant(client, email="ahmed@example.com", reserve_pct=10)  # AWS 5, Kubernetes 4, Terraform 4
+    make_account(client, me["id"])
+    company = client.post("/api/companies/", json={"name": "Banque", "sector": "Banking"}).json()
+    # Éligible, TJM fixé par l'admin
+    fixed = make_mission(client, title="Fixé", company_id=company["id"], tjm_max=900, consultant_tjm=720,
+                         skills=[{"name": "AWS", "min_level": 4}, {"name": "Terraform", "min_level": 3}])
+    # Éligible, TJM calculé : 800 − 15 % = 680
+    auto = make_mission(client, title="Auto", tjm_max=800, skills=[{"name": "k8s", "min_level": 5}])
+    # Non éligible (compétence obligatoire manquante), fermée, ou mission en cours : jamais proposées
+    make_mission(client, title="Azure", skills=[{"name": "Azure"}, {"name": "AWS"}])
+    make_mission(client, title="Fermée", status="Fermée", skills=[{"name": "AWS"}])
+    current = make_mission(client, title="En cours", skills=[{"name": "AWS"}])
+    client.put(f"/api/consultants/{me['id']}", json={**me, "skills": [{"name": s["skill"]["name"], "level": s["level"]}
+                                                                          for s in me["skills"]], "mission_id": current["id"]})
+    client.post("/api/proposals/", json={"mission_id": fixed["id"], "consultant_id": me["id"]})
+
+    with as_consultant() as c:
+        offers = c.get("/api/consultants/me/offers").json()
+        assert [o["mission"]["title"] for o in offers] == ["Fixé", "Auto"]  # classées par score
+        first, second = offers
+        assert (first["tjm"], first["sector"], first["proposal_status"]) == (720, "Banking", "Proposé")
+        # 720 € × 20 j = 14 400 € ; réserve 10 % ; salaire 12 960 €
+        assert first["monthly"] == {"days_per_month": 20, "revenue": 14400, "reserve": 1440, "salary": 12960}
+        assert (second["tjm"], second["proposal_status"]) == (680, None)
+        # Ni le nom de l'entreprise ni son TJM max
+        assert not {"company", "tjm_max"} & first["mission"].keys()
+
+    # L'entreprise ne voit jamais le TJM proposé au consultant, et ne peut pas le modifier
+    client.post("/api/users/", json={"email": "rh@banque.lu", "password": "motdepasse", "role": "company",
+                                     "company_id": company["id"]})
+    with as_consultant("rh@banque.lu") as co:
+        m = co.get(f"/api/missions/{fixed['id']}").json()
+        assert (m["consultant_tjm"], m["offered_tjm"]) == (None, None)
+        co.put(f"/api/missions/{fixed['id']}", json={"title": "Fixé", "tjm_max": 900, "consultant_tjm": 1})
+    assert client.get(f"/api/missions/{fixed['id']}").json()["consultant_tjm"] == 720
+    assert client.get("/api/consultants/me/offers").status_code == 404  # l'admin n'a pas de fiche consultant
