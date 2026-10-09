@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { api, download, euro, frDate, hasToken, setToken, setUnauthorizedHandler, ROLES } from "./api.js";
-import { Alert, Page, SkillChips, Table } from "./components/ui.jsx";
+import { api, download, euro, frDate, frMonth, hasToken, setToken, setUnauthorizedHandler, ROLES } from "./api.js";
+import { Alert, InvoiceStatus, Page, SkillChips, Table } from "./components/ui.jsx";
 import { CompanyForm, ConsultantForm, MissionForm, TrainingForm, UserForm } from "./components/forms.jsx";
 import Header from "./components/Header.jsx";
 import Login from "./components/Login.jsx";
@@ -16,6 +16,7 @@ const TABS = [
   ["consultants", "Consultants"],
   ["companies", "Entreprises"],
   ["missions", "Missions"],
+  ["invoices", "Factures"],
   ["trainings", "Formations"],
   ["users", "Utilisateurs"],
 ];
@@ -40,7 +41,7 @@ function Root() {
 
 function App({ user, onLogout }) {
   const [tab, setTab] = useState("dashboard");
-  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [], users: [], enrollments: [] });
+  const [data, setData] = useState({ consultants: [], companies: [], missions: [], trainings: [], skills: [], users: [], enrollments: [], invoices: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // modal = {kind: "consultant"|"company"|"mission"|"training"|"matches", item?}
@@ -48,10 +49,10 @@ function App({ user, onLogout }) {
 
   const load = useCallback(async () => {
     try {
-      const [consultants, companies, missions, trainings, skills, users, enrollments] = await Promise.all(
-        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/", "/users/", "/enrollments/"].map((p) => api(p))
+      const [consultants, companies, missions, trainings, skills, users, enrollments, invoices] = await Promise.all(
+        ["/consultants/", "/companies/", "/missions/", "/trainings/", "/skills/", "/users/", "/enrollments/", "/invoices/"].map((p) => api(p))
       );
-      setData({ consultants, companies, missions, trainings, skills, users, enrollments });
+      setData({ consultants, companies, missions, trainings, skills, users, enrollments, invoices });
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -76,6 +77,14 @@ function App({ user, onLogout }) {
   const setEnrollment = async (e, status) => {
     try {
       await api(`/enrollments/${e.id}`, { method: "PUT", body: { status } });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  const setInvoice = async (inv, status) => {
+    try {
+      await api(`/invoices/${inv.id}`, { method: "PUT", body: { status } });
       load();
     } catch (err) {
       setError(err.message);
@@ -115,7 +124,8 @@ function App({ user, onLogout }) {
                     { key: "name", label: "Nom", render: (x) => <><b>{x.name}</b><div className="muted">{x.title}</div></> },
                     { key: "exp", label: "Exp.", render: (x) => `${x.experience_years} ans` },
                     { key: "skills", label: "Compétences", render: (x) => <SkillChips items={x.skills} /> },
-                    { key: "tjm", label: "TJM", render: (x) => euro(x.tjm) },
+                    { key: "tjm", label: "TJM", render: (x) => <>{euro(x.tjm)}<div className="muted">client {euro(x.effective_billing_tjm)}</div></> },
+                    { key: "margin", label: "Marge / jour", render: (x) => x.margin ? <><span className="margin">{euro(x.margin.per_day)}</span><div className="muted">{euro(x.margin.per_month)} / mois</div></> : "—" },
                     { key: "reserve", label: "Réserve", render: (x) => x.reserve_pct ? <>{euro(x.reserve_amount)}<div className="muted">{x.reserve_pct} %</div></> : "—" },
                     { key: "salary", label: "Salaire / mois", render: (x) => <>{euro(x.monthly.salary)}<div className="muted">{x.days_per_month} j</div></> },
                     { key: "mission", label: "Mission", render: (x) => x.mission?.title ?? "—" },
@@ -159,6 +169,31 @@ function App({ user, onLogout }) {
                     { key: "ctjm", label: "TJM consultant", render: (x) => x.offered_tjm == null ? "—"
                       : <>{euro(x.offered_tjm)}{x.consultant_tjm == null && <div className="muted">auto</div>}</> },
                     { key: "status", label: "Statut", render: (x) => <span className={`status s-${x.status}`}>{x.status}</span> },
+                  ]} />
+              </Page>
+            )}
+
+            {tab === "invoices" && (
+              <Page title="Factures">
+                <p className="muted">Factures signées déposées par les consultants. « Demander le paiement » la rend visible à l'entreprise cliente dans son espace.</p>
+                <Table rows={data.invoices} empty="Aucune facture déposée"
+                  actions={(r) => (
+                    <>
+                      <button className="link" onClick={() => download(`/invoices/${r.id}/file`, r.filename).catch((e) => setError(e.message))}>Télécharger</button>
+                      {r.status === "Déposée" && <button className="primary small" onClick={() => setInvoice(r, "Paiement demandé")}>Demander le paiement</button>}
+                      {r.status === "Paiement demandé" && <button className="primary small" onClick={() => setInvoice(r, "Payée")}>Marquer payée</button>}
+                      <button className="link danger" onClick={() => remove(`/invoices/${r.id}`, `facture ${r.consultant.name} ${frMonth(r.period)}`)}>Supprimer</button>
+                    </>
+                  )}
+                  columns={[
+                    { key: "period", label: "Mois", render: (x) => <><b>{frMonth(x.period)}</b><div className="muted">déposée le {new Date(x.uploaded_at).toLocaleDateString("fr-FR")}</div></> },
+                    { key: "who", label: "Consultant", render: (x) => x.consultant.name },
+                    { key: "client", label: "Mission / client", render: (x) => x.mission ? <>{x.mission.title}<div className="muted">{x.mission.company?.name ?? "Pas d'entreprise"}</div></> : "—" },
+                    { key: "days", label: "Jours", render: (x) => <span className="num">{x.days} j</span> },
+                    { key: "amount", label: "À facturer au client", render: (x) => <>{euro(x.amount)}<div className="muted">{euro(x.billing_tjm)} / j</div></> },
+                    { key: "cons", label: "Dû au consultant", render: (x) => <>{euro(x.consultant_amount)}<div className="muted">{euro(x.consultant_tjm)} / j</div></> },
+                    { key: "margin", label: "Votre marge", render: (x) => x.margin == null ? "—" : <span className="margin">{euro(x.margin)}</span> },
+                    { key: "status", label: "Statut", render: (x) => <><InvoiceStatus status={x.status} />{x.paid_at && <div className="muted">le {new Date(x.paid_at).toLocaleDateString("fr-FR")}</div>}</> },
                   ]} />
               </Page>
             )}
@@ -230,8 +265,12 @@ function App({ user, onLogout }) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function Dashboard({ consultants, companies, missions, trainings, onMatch }) {
+function Dashboard({ consultants, companies, missions, trainings, invoices, onMatch }) {
   const open = missions.filter((m) => m.status === "Ouverte");
+  // Marge = TJM client − TJM consultant, sur les consultants en mission
+  const billed = consultants.filter((c) => c.mission && c.margin);
+  const total = (k) => billed.reduce((s, c) => s + c.margin[k], 0);
+  const toCollect = invoices.filter((i) => i.status === "Paiement demandé").reduce((s, i) => s + (i.amount ?? 0), 0);
   return (
     <>
       <h1>Dashboard</h1>
@@ -241,6 +280,26 @@ function Dashboard({ consultants, companies, missions, trainings, onMatch }) {
         <Card n={open.length} t="Missions ouvertes" sub={`${missions.length} au total`} />
         <Card n={trainings.length} t="Formations" />
       </div>
+      <section>
+        <h2>Ma marge</h2>
+        <div className="cards">
+          <Card n={euro(total("per_day"))} t="Par jour" sub={`${billed.length} consultant${billed.length > 1 ? "s" : ""} en mission`} />
+          <Card n={euro(total("per_week"))} t="Par semaine" sub="5 jours" />
+          <Card n={euro(total("per_month"))} t="Par mois" sub="jours facturés de chaque consultant" />
+          <Card n={euro(toCollect)} t="Paiements demandés" sub="en attente des clients" />
+        </div>
+        {billed.length > 0 && (
+          <Table rows={billed}
+            columns={[
+              { key: "name", label: "Consultant", render: (x) => <><b>{x.name}</b><div className="muted">{x.mission.title} · {x.mission.company?.name ?? "—"}</div></> },
+              { key: "bill", label: "TJM client", render: (x) => euro(x.effective_billing_tjm) },
+              { key: "tjm", label: "TJM consultant", render: (x) => euro(x.tjm) },
+              { key: "day", label: "Marge / jour", render: (x) => <span className="margin">{euro(x.margin.per_day)}</span> },
+              { key: "week", label: "/ semaine", render: (x) => euro(x.margin.per_week) },
+              { key: "month", label: "/ mois", render: (x) => <>{euro(x.margin.per_month)}<div className="muted">{x.days_per_month} j</div></> },
+            ]} />
+        )}
+      </section>
       <section>
         <h2>Missions ouvertes</h2>
         {open.length === 0 ? <p className="muted">Aucune mission ouverte.</p> : (

@@ -51,7 +51,7 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
   const f = useForm(
     {
       name: item?.name ?? "", title: item?.title ?? "", email: item?.email ?? "",
-      experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "",
+      experience_years: item?.experience_years ?? 0, tjm: item?.tjm ?? "", billing_tjm: item?.billing_tjm ?? "",
       reserve_pct: item?.reserve_pct ?? 0, days_per_month: item?.days_per_month ?? 20,
       mission_id: item?.mission?.id ?? "",
       available_from: item?.available_from ?? "", status: item?.status ?? "Freelance",
@@ -67,13 +67,17 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
         };
         return self ? common : {
           ...common, name: v.name, email: orNull(v.email.trim()), tjm: num(v.tjm), status: v.status,
-          mission_id: intOrNull(v.mission_id),
+          mission_id: intOrNull(v.mission_id), billing_tjm: v.billing_tjm === "" ? null : num(v.billing_tjm),
         };
       },
     }
   );
   const { v, set } = f;
   const pay = salary(v.tjm, v.reserve_pct, v.days_per_month);
+  // TJM client : saisi, sinon TJM max de la mission choisie
+  const missionMax = missions.find((m) => String(m.id) === String(v.mission_id))?.tjm_max;
+  const billing = v.billing_tjm === "" ? missionMax : num(v.billing_tjm);
+  const marginDay = billing ? billing - num(v.tjm) : null;
   return (
     <Modal title={self ? "Modifier mon profil" : item ? "Modifier le consultant" : "Nouveau consultant"} onClose={onClose}>
       <form onSubmit={f.submit} className="grid-form">
@@ -87,7 +91,15 @@ export function ConsultantForm({ item, catalog, missions = [], self, onClose, on
         </>}
         <Field label="Expérience (ans)"><input type="number" min="0" max="60" value={v.experience_years} onChange={set("experience_years")} /></Field>
         {!self && <>
-          <Field label="TJM (€)"><input type="number" min="0" step="10" value={v.tjm} onChange={set("tjm")} /></Field>
+          <Field label="TJM consultant (€)"><input type="number" min="0" step="10" value={v.tjm} onChange={set("tjm")} /></Field>
+          <Field label="TJM facturé au client (€)">
+            <input type="number" min="0" step="10" value={v.billing_tjm} onChange={set("billing_tjm")}
+                   placeholder={missionMax ? `auto : TJM max mission ${missionMax}` : "ex. 800"} />
+            <small className="muted">
+              {marginDay == null ? "Votre marge s'affiche dès qu'un TJM client est connu."
+                : <>Votre marge : <b className="margin">{euro(marginDay)}</b> / jour · {euro(marginDay * 5)} / semaine · {euro(marginDay * num(v.days_per_month))} / mois</>}
+            </small>
+          </Field>
           <Field label="Mission en cours">
             <select value={v.mission_id} onChange={set("mission_id")}>
               <option value="">Aucune</option>

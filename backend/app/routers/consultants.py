@@ -1,8 +1,5 @@
 from contextlib import contextmanager
 
-from pathlib import PurePath
-from urllib.parse import quote
-
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -12,9 +9,9 @@ from ..auth import current_user, require_admin
 from ..database import get_db
 from ..matching import score_consultant
 from ..models import Consultant, ConsultantCV, ConsultantSkill, Mission, Proposal, User
-from ..schemas import ConsultantIn, ConsultantOut, ConsultantSelfIn, OfferOut, SkillLevelIn, monthly_salary
+from ..schemas import ConsultantAdminOut, ConsultantIn, ConsultantOut, ConsultantSelfIn, OfferOut, SkillLevelIn, monthly_salary
 from ..skills import get_or_create_skill
-from .common import get_or_404
+from .common import file_response, get_or_404, read_upload
 
 router = APIRouter(prefix="/consultants", tags=["Consultants"])
 
@@ -74,7 +71,7 @@ def _own_id(user: User) -> int:
     return user.consultant_id
 
 
-@router.get("/", response_model=list[ConsultantOut], dependencies=[Depends(require_admin)])
+@router.get("/", response_model=list[ConsultantAdminOut], dependencies=[Depends(require_admin)])
 def list_consultants(db: Session = Depends(get_db)):
     return db.scalars(select(Consultant).order_by(Consultant.id.desc())).all()
 
@@ -131,13 +128,15 @@ def delete_my_cv(user: User = Depends(current_user), db: Session = Depends(get_d
     return delete_cv(_own_id(user), user, db)
 
 
-@router.get("/{consultant_id}", response_model=ConsultantOut)
+@router.get("/{consultant_id}", response_model=None, responses={200: {"model": ConsultantAdminOut}})
 def get_consultant(consultant_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """L'admin reçoit aussi le TJM client et la marge ; le consultant, sa fiche sans ces champs."""
     _check_access(user, consultant_id)
-    return get_or_404(db, Consultant, consultant_id, "Consultant")
+    obj = get_or_404(db, Consultant, consultant_id, "Consultant")
+    return (ConsultantAdminOut if user.role == "admin" else ConsultantOut).model_validate(obj)
 
 
-@router.post("/", response_model=ConsultantOut, status_code=201, dependencies=[Depends(require_admin)])
+@router.post("/", response_model=ConsultantAdminOut, status_code=201, dependencies=[Depends(require_admin)])
 def create_consultant(data: ConsultantIn, db: Session = Depends(get_db)):
     _check_mission(db, data.mission_id)
     with _unique_email(db):
@@ -149,7 +148,7 @@ def create_consultant(data: ConsultantIn, db: Session = Depends(get_db)):
     return obj
 
 
-@router.put("/{consultant_id}", response_model=ConsultantOut, dependencies=[Depends(require_admin)])
+@router.put("/{consultant_id}", response_model=ConsultantAdminOut, dependencies=[Depends(require_admin)])
 def update_consultant(consultant_id: int, data: ConsultantIn, db: Session = Depends(get_db)):
     obj = get_or_404(db, Consultant, consultant_id, "Consultant")
     _check_mission(db, data.mission_id)
@@ -171,15 +170,7 @@ async def upload_cv(consultant_id: int, file: UploadFile, user: User = Depends(c
     """Envoie (ou remplace) le CV : PDF, DOC, DOCX ou ODT, 5 Mo maximum."""
     _check_access(user, consultant_id)
     obj = get_or_404(db, Consultant, consultant_id, "Consultant")
-    filename = PurePath(file.filename or "").name[:200]
-    content_type = CV_TYPES.get(PurePath(filename).suffix.lower())
-    if content_type is None:
-        raise HTTPException(status_code=422, detail="Format de CV accepté : PDF, DOC, DOCX ou ODT")
-    data = await file.read(CV_MAX_BYTES + 1)
-    if len(data) > CV_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="CV trop volumineux (5 Mo maximum)")
-    if not data:
-        raise HTTPException(status_code=422, detail="Fichier vide")
+    filename, content_type, data = await read_upload(file, CV_TYPES, CV_MAX_BYTES, "CV")
     obj.cv = ConsultantCV(filename=filename, content_type=content_type, size=len(data), data=data)
     db.commit()
     db.refresh(obj)
@@ -198,11 +189,7 @@ def cv_response(db: Session, consultant_id: int) -> Response:
                    .where(ConsultantCV.consultant_id == consultant_id))
     if cv is None:
         raise HTTPException(status_code=404, detail="Aucun CV")
-    # Le type vient de notre liste blanche, jamais du client ; nosniff empêche le navigateur de deviner
-    return Response(cv.data, media_type=cv.content_type, headers={
-        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(cv.filename)}",
-        "X-Content-Type-Options": "nosniff",
-    })
+    return file_response(cv.data, cv.content_type, cv.filename)
 
 
 @router.delete("/{consultant_id}/cv", status_code=204)

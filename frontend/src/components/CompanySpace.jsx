@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { api, euro, frDate } from "../api.js";
-import { Alert, Field, Modal, Page, SkillChips, Table } from "./ui.jsx";
+import { api, download, euro, frDate, frMonth } from "../api.js";
+import { Alert, Field, InvoiceStatus, Modal, Page, SkillChips, Table } from "./ui.jsx";
 import { CompanyForm, MissionForm } from "./forms.jsx";
 import { ProfileCard } from "./ConsultantProfile.jsx";
 import Header from "./Header.jsx";
@@ -14,15 +14,17 @@ export default function CompanySpace({ user, onLogout }) {
   const [proposals, setProposals] = useState([]);
   const [trainings, setTrainings] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [error, setError] = useState(null);
   // modal = {kind: "company"|"mission"|"proposals"|"enroll", item?}
   const [modal, setModal] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const [c, m, skills, p, t, e] = await Promise.all(
-        ["/companies/me", "/missions/", "/skills/", "/proposals/", "/trainings/", "/enrollments/"].map((x) => api(x))
+      const [c, m, skills, p, t, e, inv] = await Promise.all(
+        ["/companies/me", "/missions/", "/skills/", "/proposals/", "/trainings/", "/enrollments/", "/invoices/"].map((x) => api(x))
       );
+      setInvoices(inv);
       setCompany(c);
       setMissions(m);
       setCatalog(skills);
@@ -59,6 +61,7 @@ export default function CompanySpace({ user, onLogout }) {
   const cancel = act((e) => window.confirm(`Annuler l'inscription de ${e.participant_name} ?`)
     && api(`/enrollments/${e.id}`, { method: "PUT", body: { status: "Annulée" } }));
   const open = missions.filter((m) => m.status === "Ouverte").length;
+  const due = invoices.filter((i) => i.status === "Paiement demandé");
   const proposed = (m) => proposals.filter((p) => p.mission.id === m.id);
 
   return (
@@ -109,6 +112,20 @@ export default function CompanySpace({ user, onLogout }) {
                     : <span className="muted">En cours</span> },
                 ]} />
               <p className="muted">CloudTalent étudie chaque mission ouverte et vous propose ses consultants.</p>
+            </Page>
+
+            <Page title="Factures à régler">
+              <Table rows={invoices} empty="Aucune facture pour le moment."
+                actions={(r) => <button className="link" onClick={() => download(`/invoices/${r.id}/file`, r.filename).catch((e) => setError(e.message))}>Télécharger</button>}
+                columns={[
+                  { key: "period", label: "Mois", render: (x) => <b>{frMonth(x.period)}</b> },
+                  { key: "who", label: "Consultant", render: (x) => <>{x.consultant.name}<div className="muted">{x.mission?.title}</div></> },
+                  { key: "days", label: "Jours", render: (x) => `${x.days} j` },
+                  { key: "tjm", label: "TJM", render: (x) => euro(x.billing_tjm) },
+                  { key: "amount", label: "Montant HT", render: (x) => <b>{euro(x.amount)}</b> },
+                  { key: "status", label: "Statut", render: (x) => <InvoiceStatus status={x.status === "Paiement demandé" ? "À régler" : x.status} /> },
+                ]} />
+              {due.length > 0 && <p className="muted">Total à régler à CloudTalent : <b>{euro(due.reduce((s, i) => s + (i.amount ?? 0), 0))}</b> HT.</p>}
             </Page>
 
             <Page title="Nos formations">

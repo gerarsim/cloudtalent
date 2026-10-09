@@ -70,6 +70,7 @@ class ConsultantIn(ConsultantSelfIn):
     tjm: Money = 0
     status: ConsultantStatus = "Freelance"
     mission_id: int | None = None
+    billing_tjm: Money | None = Field(None, description="TJM facturé au client ; vide = TJM max de la mission")
 
 
 class CvOut(ORM):
@@ -133,6 +134,27 @@ class ConsultantOut(ORM):
     @property
     def monthly(self) -> SalaryOut:
         return monthly_salary(self.tjm, self.reserve_pct, self.days_per_month)
+
+
+class MarginOut(BaseModel):
+    """Ce que CloudTalent gagne sur ce consultant : TJM client − TJM consultant."""
+    per_day: float
+    per_week: float = Field(description="5 jours")
+    per_month: float = Field(description="Jours facturés par mois du consultant")
+
+
+class ConsultantAdminOut(ConsultantOut):
+    """Vue admin : ajoute le TJM facturé au client et la marge (jamais montrés au consultant)."""
+    billing_tjm: float | None
+    effective_billing_tjm: float | None
+
+    @computed_field(description="Marge CloudTalent (null sans TJM client)")
+    @property
+    def margin(self) -> MarginOut | None:
+        if self.effective_billing_tjm is None:
+            return None
+        day = round(self.effective_billing_tjm - self.tjm, 2)
+        return MarginOut(per_day=day, per_week=round(day * 5, 2), per_month=round(day * self.days_per_month, 2))
 
 
 # --- Entreprises -----------------------------------------------------------
@@ -397,3 +419,45 @@ class PasswordChange(BaseModel):
 
 
 OfferOut.model_rebuild()  # SkillMatch est déclaré après
+
+
+# --- Factures ----------------------------------------------------------------
+
+InvoiceStatus = Literal["Déposée", "Paiement demandé", "Payée"]
+Period = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
+
+
+class ConsultantRef(ORM):
+    id: int
+    name: str
+
+
+class InvoiceMissionRef(ORM):
+    id: int
+    title: str
+    company: CompanyRef | None
+
+
+class InvoiceStatusIn(BaseModel):
+    status: InvoiceStatus
+
+
+class InvoiceOut(ORM):
+    """Champs financiers selon le rôle : le consultant voit son montant, l'entreprise le montant
+    facturé, l'admin tout (marge comprise). Les autres sont null."""
+    id: int
+    consultant: ConsultantRef
+    mission: InvoiceMissionRef | None
+    period: str
+    days: float
+    status: str
+    filename: str
+    size: int
+    uploaded_at: datetime
+    requested_at: datetime | None
+    paid_at: datetime | None
+    consultant_tjm: float | None
+    consultant_amount: float | None
+    billing_tjm: float | None
+    amount: float | None
+    margin: float | None

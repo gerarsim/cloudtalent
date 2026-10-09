@@ -142,3 +142,11 @@ input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px;border-co
 .card .offer-pay b{font-size:24px}
 .count{display:inline-block;background:#0ea5e9;color:white;border-radius:999px;font-size:12px;padding:1px 8px;vertical-align:middle}
 @media (max-width:640px){.offer{flex-direction:column}.offer-pay{align-items:flex-start;text-align:left}}
+/* Factures */
+.status.s-deposee{background:#f1f5f9;color:#334155}
+.status.s-demande{background:#fef3c7;color:#92400e}
+.status.s-payee{background:#dcfce7;color:#166534}
+.invoice-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.invoice-form .field{min-width:150px}
+.num{text-align:right;white-space:nowrap}
+.margin{color:#166534;font-weight:700}
