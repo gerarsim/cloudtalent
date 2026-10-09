@@ -29,9 +29,9 @@ L'accueil propose trois espaces sous forme d'icônes (Administrateur, Consultant
 
 | Rôle | Droits |
 |------|--------|
-| **Administrateur** | Accès complet : consultants, entreprises, missions, formations, matching, gestion des comptes (onglet « Utilisateurs »). |
-| **Consultant** | Voit **uniquement son profil** (« Mon profil ») : sa mission en cours, son TJM, le calcul de son salaire mensuel, son CV et ses compétences. Reçoit automatiquement ses **offres** : les missions ouvertes pour lesquelles il est éligible au matching, avec le **TJM proposé par CloudTalent** et son salaire estimé. Il choisit son **pourcentage de réserve** et ses jours facturés, envoie son CV (PDF/DOC/DOCX/ODT, 5 Mo), et modifie profil, compétences, disponibilité et mot de passe. Nom, email, TJM, statut et mission sont gérés par l'admin. Tout le reste renvoie 403. |
-| **Entreprise partenaire** | Gère **sa fiche entreprise** (coordonnées, TVA, site, présentation) et **publie ses missions** (postes à pourvoir : descriptif, compétences, TJM max, dates, statut). Voit le **profil et le CV des consultants que CloudTalent lui propose** pour ses missions (sans email, TJM, réserve ni salaire) et les retient ou refuse. Consulte le **catalogue de formations** et y **inscrit ses collaborateurs** ; CloudTalent confirme. Ne voit ni les autres consultants ni le matching. |
+| **Administrateur** | Accès complet : consultants, entreprises, missions, formations, matching, gestion des comptes (onglet « Utilisateurs »). Fixe pour chaque consultant son **TJM consultant** et son **TJM facturé au client** (vide = TJM max de la mission) et voit sa **marge par jour, semaine (5 j) et mois** (dashboard « Ma marge », liste et fiche consultant). Onglet « Factures » : télécharge les factures signées, **demande le paiement** à l'entreprise cliente puis les marque payées. |
+| **Consultant** | Voit **uniquement son profil** (« Mon profil ») : sa mission en cours, son TJM, le calcul de son salaire mensuel, son CV et ses compétences. Reçoit automatiquement ses **offres** : les missions ouvertes pour lesquelles il est éligible au matching, avec le **TJM proposé par CloudTalent** et son salaire estimé. Il choisit son **pourcentage de réserve** et ses jours facturés, envoie son CV (PDF/DOC/DOCX/ODT, 5 Mo), **dépose chaque mois sa facture signée** par lui et son client (PDF/JPG/PNG, 10 Mo, remplaçable tant que le paiement n'est pas demandé), et modifie profil, compétences, disponibilité et mot de passe. Nom, email, TJM, statut et mission sont gérés par l'admin. Tout le reste renvoie 403. |
+| **Entreprise partenaire** | Gère **sa fiche entreprise** (coordonnées, TVA, site, présentation) et **publie ses missions** (postes à pourvoir : descriptif, compétences, TJM max, dates, statut). Voit le **profil et le CV des consultants que CloudTalent lui propose** pour ses missions (sans email, TJM, réserve ni salaire) et les retient ou refuse. Voit les **factures dont CloudTalent lui demande le paiement** (TJM client et montant uniquement). Consulte le **catalogue de formations** et y **inscrit ses collaborateurs** ; CloudTalent confirme. Ne voit ni les autres consultants ni le matching. |
 
 - Le compte admin est créé au démarrage depuis `ADMIN_EMAIL` / `ADMIN_PASSWORD` s'il n'existe aucun admin
   (en dev : `admin@cloudtalent.lu` / `admin1234`, voir `docker-compose.yml`).
@@ -87,6 +87,14 @@ liste de `{consultant, score, skill_score, eligible, tjm_ok, available, matched,
   \+ **15 % TJM** (pénalité linéaire jusqu'à +20 % au-dessus du max)
   \+ **15 % disponibilité** (pénalité linéaire jusqu'à 60 jours de retard).
 - **Éligible** = possède toutes les compétences obligatoires. Les éligibles sont classés en premier.
+
+## Factures et marge
+
+- Le TJM client et le TJM consultant sont **figés au dépôt** de la facture : modifier les tarifs
+  ensuite ne change pas les factures déjà déposées.
+- Montant client = jours × TJM client ; dû au consultant = jours × TJM consultant ; marge = la différence.
+- Le consultant ne voit jamais le TJM client ni la marge ; l'entreprise ne voit jamais le TJM consultant ni la marge.
+- « Demander le paiement » rend la facture visible dans l'espace de l'entreprise (aucun email n'est envoyé).
 
 ## Ce MVP contient
 

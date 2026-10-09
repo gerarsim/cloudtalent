@@ -91,3 +91,8 @@ export function SkillChips({ items }) {
     </div>
   );
 }
+
+const INVOICE_CLASS = { "Déposée": "s-deposee", "Paiement demandé": "s-demande", "À régler": "s-demande", "Payée": "s-payee" };
+export function InvoiceStatus({ status }) {
+  return <span className={`status ${INVOICE_CLASS[status] ?? ""}`}>{status}</span>;
+}

@@ -46,6 +46,12 @@ export default function ConsultantProfile({ consultant: c, onClose }) {
             <span className="muted">Salaire / mois</span><b>{euro(c.monthly.salary)}</b>
             <small className="muted">{c.days_per_month} j · réserve {c.reserve_pct} % ({euro(c.monthly.reserve)})</small>
           </div>
+          {c.margin && (
+            <div className="stat">
+              <span className="muted">Votre marge (client {euro(c.effective_billing_tjm)} / j)</span><b className="margin">{euro(c.margin.per_day)} / j</b>
+              <small className="muted">{euro(c.margin.per_week)} / semaine · {euro(c.margin.per_month)} / mois</small>
+            </div>
+          )}
         </div>
       </ProfileCard>
     </Modal>

@@ -50,10 +50,11 @@ export async function api(path, opts) {
   return res.status === 204 ? null : res.json().catch(() => null);
 }
 
-/** Envoi d'un fichier (multipart, champ `file`). */
-export const upload = (path, file, method = "PUT") => {
+/** Envoi d'un fichier (multipart, champ `file`), avec d'éventuels champs de formulaire. */
+export const upload = (path, file, method = "PUT", fields = {}) => {
   const form = new FormData();
   form.append("file", file);
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
   return api(path, { method, form });
 };
 
@@ -78,4 +79,7 @@ export const TRAINING_LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
 export const orNull = (v) => (v === "" || v === undefined ? null : v);
 export const euro = (n) => (n ? `${Number(n).toLocaleString("fr-FR")} €` : "—");
 export const fileSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} Mo` : `${Math.ceil(n / 1024)} Ko`);
+export const INVOICE_STATUSES = ["Déposée", "Paiement demandé", "Payée"];
+// "2026-09" -> "septembre 2026"
+export const frMonth = (p) => new Date(`${p}-01T00:00:00`).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 export const frDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "—");

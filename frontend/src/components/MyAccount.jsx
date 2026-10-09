@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { api, download, euro, fileSize, frDate, upload } from "../api.js";
-import { Alert, SkillChips } from "./ui.jsx";
+import { api, download, euro, fileSize, frDate, frMonth, upload } from "../api.js";
+import { Alert, InvoiceStatus, SkillChips } from "./ui.jsx";
 import { ConsultantForm, salary } from "./forms.jsx";
 import Header from "./Header.jsx";
 
@@ -67,6 +67,7 @@ export default function MyAccount({ user, onLogout }) {
             <Offers offers={offers} />
             <Pay me={me} onSaved={(p) => { setMe(p); load(); }} onError={setError} />
             <Cv me={me} onSaved={setMe} onError={setError} />
+            <Invoices me={me} onError={setError} />
 
             <div className="card profile">
               <h2>Compétences</h2>
@@ -172,6 +173,84 @@ function Cv({ me, onSaved, onError }) {
         </button>
         <small className="muted"> PDF, DOC, DOCX ou ODT · 5 Mo max.</small>
       </div>
+    </div>
+  );
+}
+
+// Mois précédent au format AAAA-MM : on facture en général le mois écoulé
+function lastMonth() {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Facture mensuelle signée par le consultant et son client. Remplaçable tant que CloudTalent
+ *  n'a pas demandé le paiement. */
+function Invoices({ me, onError }) {
+  const [rows, setRows] = useState([]);
+  const [period, setPeriod] = useState(lastMonth);
+  const [days, setDays] = useState(me.days_per_month);
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const input = useRef(null);
+
+  const load = useCallback(() => api("/invoices/").then(setRows).catch((e) => onError(e.message)), [onError]);
+  useEffect(() => { load(); }, [load]);
+
+  const run = (fn) => async (...args) => {
+    setBusy(true);
+    try { await fn(...args); await load(); } catch (err) { onError(err.message); } finally { setBusy(false); }
+  };
+  const send = run(async (e) => {
+    e.preventDefault();
+    await upload("/invoices/", file, "POST", { period, days });
+    setFile(null);
+    input.current.value = "";
+  });
+  const remove = (inv) => run(async () => {
+    if (window.confirm(`Supprimer la facture de ${frMonth(inv.period)} ?`)) await api(`/invoices/${inv.id}`, { method: "DELETE" });
+  })();
+  const replacing = rows.find((r) => r.period === period);
+
+  return (
+    <div className="card profile">
+      <h2>Mes factures</h2>
+      <p className="muted">Déposez chaque mois votre facture signée par vous et par votre client. CloudTalent se charge d'en demander le paiement.</p>
+      <form className="invoice-form" onSubmit={send}>
+        <label className="field">
+          <span>Mois facturé</span>
+          <input type="month" required value={period} onChange={(e) => setPeriod(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Jours travaillés</span>
+          <input type="number" required min="0.5" max="31" step="0.5" value={days} onChange={(e) => setDays(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Facture signée (PDF, JPG ou PNG, 10 Mo)</span>
+          <input ref={input} type="file" required accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </label>
+        <button className="primary" disabled={busy || !file}>
+          {busy ? "Envoi…" : replacing ? "Remplacer la facture" : "Déposer la facture"}
+        </button>
+      </form>
+      {Number(days) > 0 && (
+        <p className="muted">Montant pour vous : {euro(me.tjm)} × {Number(days)} j = <strong>{euro(me.tjm * Number(days))}</strong></p>
+      )}
+      {rows.length === 0 ? <p className="muted">Aucune facture déposée.</p> : (
+        <table className="pay-calc">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td><b>{frMonth(r.period)}</b><div className="muted">{r.days} j · {euro(r.consultant_amount)}</div></td>
+                <td><button className="link" onClick={run(() => download(`/invoices/${r.id}/file`, r.filename))}>{r.filename}</button></td>
+                <td><InvoiceStatus status={r.status} /></td>
+                <td>{r.status === "Déposée" && <button className="link danger" disabled={busy} onClick={() => remove(r)}>Supprimer</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

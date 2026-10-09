@@ -68,6 +68,7 @@ class Consultant(Base):
         CheckConstraint("experience_years >= 0", name="ck_consultant_exp"),
         CheckConstraint("reserve_pct BETWEEN 0 AND 100", name="ck_consultant_reserve_pct"),
         CheckConstraint("days_per_month BETWEEN 0 AND 31", name="ck_consultant_days_per_month"),
+        CheckConstraint("billing_tjm IS NULL OR billing_tjm >= 0", name="ck_consultant_billing_tjm"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -84,12 +85,23 @@ class Consultant(Base):
     days_per_month: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     # Mission en cours, affectée par un admin
     mission_id: Mapped[int | None] = mapped_column(ForeignKey("missions.id", ondelete="SET NULL"), index=True)
+    # TJM facturé au client pour ce consultant (admin uniquement) ; vide = TJM max de la mission
+    billing_tjm: Mapped[float | None] = mapped_column(Float)
 
     skills: Mapped[list[ConsultantSkill]] = relationship(
         cascade="all, delete-orphan", lazy="selectin", order_by="ConsultantSkill.level.desc()"
     )
     mission: Mapped["Mission | None"] = relationship(lazy="selectin")
     cv: Mapped["ConsultantCV | None"] = relationship(cascade="all, delete-orphan", lazy="selectin")
+
+    @property
+    def effective_billing_tjm(self) -> float | None:
+        """TJM facturé au client : celui fixé sur le consultant, sinon le TJM max de sa mission."""
+        if self.billing_tjm is not None:
+            return self.billing_tjm
+        if self.mission is not None and self.mission.tjm_max:
+            return self.mission.tjm_max
+        return None
 
 
 class ConsultantCV(Base):
@@ -247,6 +259,52 @@ class Enrollment(Base):
     company: Mapped[Company] = relationship(lazy="joined")
 
 
+class Invoice(Base):
+    """Facture (ou relevé d'activité) mensuelle déposée par le consultant, signée par lui et son client.
+
+    Les TJM sont figés au dépôt : un changement de tarif ultérieur ne modifie pas une facture existante."""
+    __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint("consultant_id", "period", name="uq_invoice_consultant_period"),
+        CheckConstraint("status IN ('Déposée', 'Paiement demandé', 'Payée')", name="ck_invoice_status"),
+        CheckConstraint("days > 0 AND days <= 31", name="ck_invoice_days"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consultant_id: Mapped[int] = mapped_column(
+        ForeignKey("consultants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    mission_id: Mapped[int | None] = mapped_column(ForeignKey("missions.id", ondelete="SET NULL"), index=True)
+    period: Mapped[str] = mapped_column(String(7), nullable=False)  # "AAAA-MM"
+    days: Mapped[float] = mapped_column(Float, nullable=False)
+    consultant_tjm: Mapped[float] = mapped_column(Float, nullable=False)
+    billing_tjm: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(20), default="Déposée", nullable=False)
+    filename: Mapped[str] = mapped_column(String(200), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    data: Mapped[bytes] = deferred(mapped_column(LargeBinary, nullable=False))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    consultant: Mapped[Consultant] = relationship(lazy="joined")
+    mission: Mapped[Mission | None] = relationship(lazy="joined")
+
+    @property
+    def amount(self) -> float | None:
+        """Montant à facturer au client."""
+        return None if self.billing_tjm is None else round(self.days * self.billing_tjm, 2)
+
+    @property
+    def consultant_amount(self) -> float:
+        return round(self.days * self.consultant_tjm, 2)
+
+    @property
+    def margin(self) -> float | None:
+        return None if self.amount is None else round(self.amount - self.consultant_amount, 2)
+
+
 __all__ = [
     "Skill",
     "ConsultantSkill",
@@ -258,4 +316,5 @@ __all__ = [
     "User",
     "Proposal",
     "Enrollment",
+    "Invoice",
 ]
